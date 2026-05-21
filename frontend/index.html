@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tic-Tac-Toe</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="app">
+    <section class="layout">
+      <section class="board-wrap">
+        <div class="session-panel">
+          <span class="label">ID игровой сессии</span>
+          <div class="session-value" id="session-id">Нет активной игры</div>
+        </div>
+        <div class="board" id="board"></div>
+      </section>
+
+      <aside class="sidebar">
+        <h1 class="headline">Tic-Tac-Toe</h1>
+        <p class="subtitle">Играй в браузере против компьютера. Ты ходишь крестиками.</p>
+
+        <form class="auth" id="auth-form">
+          <input id="login" autocomplete="username" name="login" placeholder="Логин" required type="text">
+          <input id="password" autocomplete="current-password" name="password" placeholder="Пароль" required type="password">
+          <div class="actions">
+            <button class="secondary" id="signup" type="button">Зарегистрироваться</button>
+            <button class="primary" id="signin" type="submit">Войти</button>
+            <button class="secondary" id="logout" type="button">Выйти</button>
+          </div>
+        </form>
+
+        <div class="meta">
+          <span class="label">Игроки</span>
+          <div class="players-grid" id="players">
+            <div class="player-card">
+              <span class="player-name">You</span>
+              <span class="player-symbol" id="you-symbol">X</span>
+            </div>
+            <div class="player-card">
+              <span class="player-name">Computer</span>
+              <span class="player-symbol" id="computer-symbol">O</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="new-game" type="button">Играть с компьютером</button>
+          <button class="secondary" id="new-player-game" type="button">Создать PvP</button>
+        </div>
+
+        <form class="join-form" id="join-form">
+          <label class="label" for="join-game-id">Присоединиться по ID</label>
+          <div class="join-row">
+            <input id="join-game-id" name="join-game-id" placeholder="UUID игровой сессии" type="text">
+            <button class="secondary" type="submit">Войти</button>
+          </div>
+        </form>
+
+        <div class="games" id="games"></div>
+
+        <p class="footer">
+          Frontend работает отдельным сервисом и отправляет ходы в backend API. <a href="/swagger" rel="noopener">Swagger</a>
+        </p>
+      </aside>
+
+      <aside class="status-panel">
+        <span class="label">Статус</span>
+        <div class="status" id="status">Нажми на клетку, чтобы сделать первый ход.</div>
+      </aside>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

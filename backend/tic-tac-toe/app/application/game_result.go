@@ -1,0 +1,104 @@
+package application
+
+import "tic-tac-toe/app/domain"
+
+func (s *GameService) CheckGameFinished(game domain.Game) (domain.GameResult, bool) {
+	switch game.State {
+	case domain.GameStateWaitingPlayers:
+		return domain.GameResult{Status: domain.GameWaitingPlayers}, false
+	case domain.GameStateDraw:
+		return domain.GameResult{Status: domain.GameDraw}, true
+	case domain.GameStatePlayerWins:
+		if game.WinnerUUID == domain.ComputerPlayerUUID {
+			return domain.GameResult{Status: domain.GameComputerWon, WinnerUUID: game.WinnerUUID}, true
+		}
+		return domain.GameResult{Status: domain.GameUserWon, WinnerUUID: game.WinnerUUID}, true
+	}
+
+	if err := validateFieldShape(game.Field); err != nil {
+		return domain.GameResult{Status: domain.GameInProgress}, false
+	}
+
+	if hasWinner(game.Field, domain.CellUser) {
+		return domain.GameResult{Status: domain.GameUserWon, WinnerUUID: game.PlayerXUUID}, true
+	}
+
+	if hasWinner(game.Field, domain.CellComputer) {
+		winnerUUID := game.PlayerOUUID
+		if winnerUUID == "" && isComputerPlayer(game) {
+			winnerUUID = domain.ComputerPlayerUUID
+		}
+		if isComputerPlayer(game) {
+			return domain.GameResult{Status: domain.GameComputerWon, WinnerUUID: winnerUUID}, true
+		}
+		return domain.GameResult{Status: domain.GameUserWon, WinnerUUID: winnerUUID}, true
+	}
+
+	if isBoardFull(game.Field) {
+		return domain.GameResult{Status: domain.GameDraw}, true
+	}
+
+	return domain.GameResult{Status: domain.GameInProgress}, false
+}
+
+func (s *GameService) updateGameState(game domain.Game) domain.Game {
+	if hasWinner(game.Field, domain.CellX) {
+		game.State = domain.GameStatePlayerWins
+		game.WinnerUUID = game.PlayerXUUID
+		game.NextPlayerUUID = ""
+		return game
+	}
+
+	if hasWinner(game.Field, domain.CellO) {
+		game.State = domain.GameStatePlayerWins
+		game.WinnerUUID = game.PlayerOUUID
+		game.NextPlayerUUID = ""
+		return game
+	}
+
+	if isBoardFull(game.Field) {
+		game.State = domain.GameStateDraw
+		game.WinnerUUID = ""
+		game.NextPlayerUUID = ""
+		return game
+	}
+
+	game.State = domain.GameStatePlayerToMove
+	game.WinnerUUID = ""
+	return game
+}
+
+func hasWinner(field domain.Field, player int) bool {
+	for i := 0; i < domain.BoardSize; i++ {
+		if field[i][0] == player && field[i][1] == player && field[i][2] == player {
+			return true
+		}
+	}
+
+	for j := 0; j < domain.BoardSize; j++ {
+		if field[0][j] == player && field[1][j] == player && field[2][j] == player {
+			return true
+		}
+	}
+
+	if field[0][0] == player && field[1][1] == player && field[2][2] == player {
+		return true
+	}
+
+	if field[0][2] == player && field[1][1] == player && field[2][0] == player {
+		return true
+	}
+
+	return false
+}
+
+func isBoardFull(field domain.Field) bool {
+	for i := 0; i < domain.BoardSize; i++ {
+		for j := 0; j < domain.BoardSize; j++ {
+			if field[i][j] == domain.CellEmpty {
+				return false
+			}
+		}
+	}
+	return true
+}

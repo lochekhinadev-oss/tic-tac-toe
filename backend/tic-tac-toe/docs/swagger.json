@@ -1,0 +1,1105 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "HTTP API for user authentication and tic-tac-toe games.",
+        "title": "Tic-Tac-Toe API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/auth/sessions": {
+            "post": {
+                "description": "Send login and password as JSON and receive Bearer access and refresh tokens.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Authenticate by login and password",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.JwtRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "JWT tokens",
+                        "schema": {
+                            "$ref": "#/definitions/dto.JwtResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid or missing credentials",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Request body must be application/json",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Authentication failed",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout from all sessions",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RefreshJwtRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Logged out from all sessions"
+                    },
+                    "400": {
+                        "description": "Invalid JSON",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid refresh token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Request body must be application/json",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Logout failed",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/sessions/current": {
+            "delete": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RefreshJwtRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Logged out"
+                    },
+                    "400": {
+                        "description": "Invalid JSON",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid refresh token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Request body must be application/json",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Logout failed",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/tokens/access": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Refresh access token",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RefreshJwtRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "JWT tokens",
+                        "schema": {
+                            "$ref": "#/definitions/dto.JwtResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid refresh token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Request body must be application/json",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Refresh failed",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/tokens/refresh": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Refresh refresh token",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RefreshJwtRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "JWT tokens",
+                        "schema": {
+                            "$ref": "#/definitions/dto.JwtResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid refresh token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Request body must be application/json",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Refresh failed",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/games": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns active games visible to authenticated users. Request body is not used.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "games"
+                ],
+                "summary": "List available games",
+                "responses": {
+                    "200": {
+                        "description": "Active games",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GamesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Games were not loaded",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a computer game by default when the body is empty or mode is omitted. Supported modes are \"computer\" and \"player\".",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "games"
+                ],
+                "summary": "Create a new game",
+                "parameters": [
+                    {
+                        "description": "Request body. Can be omitted.",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateGameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created game",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GameResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body or mode",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Request body must be application/json",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Game was not saved",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/games/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns games completed by the authenticated user. Includes wins by the user and draws involving the user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "games"
+                ],
+                "summary": "List completed games",
+                "responses": {
+                    "200": {
+                        "description": "Completed games",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GameHistoryResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Games were not loaded",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/games/leaderboard": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the best players sorted by win ratio in descending order.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "games"
+                ],
+                "summary": "List top players",
+                "parameters": [
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Number of top players",
+                        "name": "n",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Top players",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LeaderboardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid limit",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Leaderboard was not loaded",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/games/{uuid}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the current saved state of one game. Request body is not used.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "games"
+                ],
+                "summary": "Get game by UUID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "default": "123e4567-e89b-42d3-a456-426614174000",
+                        "description": "Game UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Game state",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GameResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid UUID",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Game not found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Game was not loaded",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/games/{uuid}/join": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Joins an existing player-vs-player game that is waiting for a second player. Request body is not used.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "games"
+                ],
+                "summary": "Join a game",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "default": "123e4567-e89b-42d3-a456-426614174000",
+                        "description": "Game UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Joined game",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GameResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Game cannot be joined",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Game not found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Join was not saved",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/games/{uuid}/move": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The request body UUID is optional. If it is present, it must match the UUID from the path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "games"
+                ],
+                "summary": "Apply a move",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "default": "123e4567-e89b-42d3-a456-426614174000",
+                        "description": "Game UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.GameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated game",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GameResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid body, invalid move, or UUID mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Game not found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Request body must be application/json",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Move was not saved",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users": {
+            "post": {
+                "description": "Creates a user by login and password. Login is trimmed, password is stored as a hash.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register a new user",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SignUpRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "User registered",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SignUpResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON or empty login/password",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Login already exists",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SignUpResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Request body must be application/json",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Registration failed",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns public user information for the authenticated Bearer token.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get current user",
+                "responses": {
+                    "200": {
+                        "description": "User",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UserResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "User was not loaded",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{uuid}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns public user information. Request body is not used.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get user by UUID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "default": "123e4567-e89b-42d3-a456-426614174000",
+                        "description": "User UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid UUID",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "User was not loaded",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dto.CreateGameRequest": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "description": "Game mode. Use \"computer\" to play against AI or \"player\" to wait for another user.",
+                    "type": "string",
+                    "default": "computer",
+                    "enum": [
+                        "computer",
+                        "player"
+                    ],
+                    "example": "computer"
+                }
+            }
+        },
+        "dto.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "description": "Error message.",
+                    "type": "string",
+                    "example": "invalid request body"
+                }
+            }
+        },
+        "dto.GameHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "games": {
+                    "description": "Completed games.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.GameResponse"
+                    }
+                }
+            }
+        },
+        "dto.GameRequest": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "description": "Current 3x3 field. 0 is empty, 1 is X, 2 is O.",
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "uuid": {
+                    "description": "Game UUID. Optional in request body; if present, it must match the path UUID.",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-42d3-a456-426614174000"
+                }
+            }
+        },
+        "dto.GameResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "description": "Game creation date.",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-05-15T20:00:00Z"
+                },
+                "field": {
+                    "description": "Current 3x3 field. 0 is empty, 1 is X, 2 is O.",
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "mode": {
+                    "description": "Game mode.",
+                    "type": "string",
+                    "enum": [
+                        "computer",
+                        "player"
+                    ],
+                    "example": "computer"
+                },
+                "next_player_uuid": {
+                    "description": "UUID of the player who should move next, or \"computer\".",
+                    "type": "string",
+                    "example": "123e4567-e89b-42d3-a456-426614174000"
+                },
+                "player_o_uuid": {
+                    "description": "UUID of the player using O, or \"computer\".",
+                    "type": "string",
+                    "example": "computer"
+                },
+                "player_x_uuid": {
+                    "description": "UUID of the player using X.",
+                    "type": "string",
+                    "example": "123e4567-e89b-42d3-a456-426614174000"
+                },
+                "state": {
+                    "description": "Game state.",
+                    "type": "string",
+                    "enum": [
+                        "waiting_players",
+                        "player_to_move",
+                        "draw",
+                        "player_wins"
+                    ],
+                    "example": "player_to_move"
+                },
+                "uuid": {
+                    "description": "Game UUID.",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-42d3-a456-426614174000"
+                },
+                "winner_uuid": {
+                    "description": "Winner UUID when state is player_wins.",
+                    "type": "string",
+                    "example": "123e4567-e89b-42d3-a456-426614174000"
+                }
+            }
+        },
+        "dto.GamesResponse": {
+            "type": "object",
+            "properties": {
+                "games": {
+                    "description": "Active games.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.GameResponse"
+                    }
+                }
+            }
+        },
+        "dto.JwtRequest": {
+            "type": "object",
+            "properties": {
+                "login": {
+                    "description": "User login. Must not be empty.",
+                    "type": "string",
+                    "example": "player"
+                },
+                "password": {
+                    "description": "User password. Must not be empty.",
+                    "type": "string",
+                    "example": "secret"
+                }
+            }
+        },
+        "dto.JwtResponse": {
+            "type": "object",
+            "properties": {
+                "accessToken": {
+                    "description": "Short-lived access token.",
+                    "type": "string",
+                    "example": "eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ..."
+                },
+                "refreshToken": {
+                    "description": "Long-lived refresh token.",
+                    "type": "string",
+                    "example": "eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ..."
+                },
+                "type": {
+                    "description": "Token type.",
+                    "type": "string",
+                    "example": "Bearer"
+                }
+            }
+        },
+        "dto.LeaderboardEntry": {
+            "type": "object",
+            "properties": {
+                "login": {
+                    "description": "User login.",
+                    "type": "string",
+                    "example": "player"
+                },
+                "uuid": {
+                    "description": "User UUID.",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-42d3-a456-426614174000"
+                },
+                "winRatio": {
+                    "description": "Ratio of wins to losses and draws.",
+                    "type": "number",
+                    "example": 1.5
+                }
+            }
+        },
+        "dto.LeaderboardResponse": {
+            "type": "object",
+            "properties": {
+                "players": {
+                    "description": "Best players.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.LeaderboardEntry"
+                    }
+                }
+            }
+        },
+        "dto.RefreshJwtRequest": {
+            "type": "object",
+            "properties": {
+                "refreshToken": {
+                    "description": "Refresh token.",
+                    "type": "string",
+                    "example": "eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ..."
+                }
+            }
+        },
+        "dto.SignUpRequest": {
+            "type": "object",
+            "properties": {
+                "login": {
+                    "description": "User login. Must not be empty.",
+                    "type": "string",
+                    "example": "player"
+                },
+                "password": {
+                    "description": "User password. Must not be empty.",
+                    "type": "string",
+                    "example": "secret"
+                }
+            }
+        },
+        "dto.SignUpResponse": {
+            "type": "object",
+            "properties": {
+                "success": {
+                    "description": "Registration result.",
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "dto.UserResponse": {
+            "type": "object",
+            "properties": {
+                "login": {
+                    "description": "User login.",
+                    "type": "string",
+                    "example": "player"
+                },
+                "uuid": {
+                    "description": "User UUID.",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-42d3-a456-426614174000"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

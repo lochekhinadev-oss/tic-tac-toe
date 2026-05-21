@@ -1,0 +1,336 @@
+:root {
+  --bg: #f3efe4;
+  --panel: #fffaf0;
+  --line: #2f2a24;
+  --accent: #c65d3a;
+  --text: #1f1a17;
+  --muted: #6b625b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(232, 178, 103, 0.45), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(198, 93, 58, 0.25), transparent 28%),
+    linear-gradient(135deg, #efe5d0, var(--bg));
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.app {
+  width: min(100%, 1180px);
+  background: rgba(255, 250, 240, 0.92);
+  border: 2px solid rgba(47, 42, 36, 0.14);
+  border-radius: 28px;
+  box-shadow: 0 28px 60px rgba(31, 26, 23, 0.16);
+  overflow: hidden;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr) 280px;
+  grid-template-areas: "sidebar board status";
+  align-items: start;
+}
+
+.board-wrap {
+  grid-area: board;
+}
+
+.sidebar {
+  grid-area: sidebar;
+  padding: 28px;
+  background: linear-gradient(180deg, rgba(232, 178, 103, 0.18), rgba(198, 93, 58, 0.08));
+  border-right: 1px solid rgba(47, 42, 36, 0.12);
+}
+
+.headline {
+  margin: 0 0 10px;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.subtitle {
+  margin: 0 0 22px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.meta {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(47, 42, 36, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.auth {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+input {
+  width: 100%;
+  border: 1px solid rgba(47, 42, 36, 0.18);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.value {
+  font-size: 1rem;
+  word-break: break-word;
+}
+
+.players-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.player-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(47, 42, 36, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.player-name {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-symbol {
+  flex: 0 0 auto;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.status {
+  min-height: 72px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--line);
+  color: #fffaf0;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.actions button:disabled {
+  opacity: 0.82;
+}
+
+.games {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.join-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid rgba(47, 42, 36, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.join-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.game-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(47, 42, 36, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.game-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 12px 18px;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.16s ease, opacity 0.16s ease, box-shadow 0.16s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.primary {
+  background: var(--accent);
+  color: #fffaf0;
+  box-shadow: 0 10px 22px rgba(198, 93, 58, 0.26);
+}
+
+.secondary {
+  background: rgba(47, 42, 36, 0.08);
+  color: var(--text);
+}
+
+.footer {
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.board-wrap {
+  display: grid;
+  place-items: center;
+  gap: 18px;
+  padding: 28px;
+  align-self: start;
+}
+
+.status-panel {
+  grid-area: status;
+  padding: 28px 24px;
+  border-left: 1px solid rgba(47, 42, 36, 0.12);
+  background: linear-gradient(180deg, rgba(232, 178, 103, 0.08), rgba(198, 93, 58, 0.06));
+}
+
+.status-panel .label {
+  margin-bottom: 10px;
+}
+
+.status-panel .status {
+  margin-bottom: 0;
+}
+
+.session-panel {
+  width: min(100%, 420px);
+  padding: 14px 16px;
+  border: 1px solid rgba(47, 42, 36, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.session-value {
+  min-height: 24px;
+  font-size: 0.95rem;
+  word-break: break-all;
+}
+
+.board {
+  width: min(100%, 420px);
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(47, 42, 36, 0.88), rgba(47, 42, 36, 0.72));
+}
+
+.cell {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: var(--panel);
+  color: var(--line);
+  font-size: clamp(2.8rem, 9vw, 4.8rem);
+  font-weight: bold;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px rgba(47, 42, 36, 0.06);
+}
+
+.cell:hover {
+  transform: none;
+}
+
+.cell.player {
+  color: var(--accent);
+}
+
+.cell.computer {
+  color: var(--line);
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "sidebar"
+      "board"
+      "status";
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid rgba(47, 42, 36, 0.12);
+  }
+
+  .status-panel {
+    border-left: 0;
+    border-top: 1px solid rgba(47, 42, 36, 0.12);
+  }
+
+  .join-row {
+    grid-template-columns: 1fr;
+  }
+}

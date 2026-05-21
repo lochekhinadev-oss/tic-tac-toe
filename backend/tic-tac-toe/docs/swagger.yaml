@@ -1,0 +1,747 @@
+basePath: /
+definitions:
+  dto.CreateGameRequest:
+    properties:
+      mode:
+        default: computer
+        description: Game mode. Use "computer" to play against AI or "player" to wait
+          for another user.
+        enum:
+        - computer
+        - player
+        example: computer
+        type: string
+    type: object
+  dto.ErrorResponse:
+    properties:
+      message:
+        description: Error message.
+        example: invalid request body
+        type: string
+    type: object
+  dto.GameHistoryResponse:
+    properties:
+      games:
+        description: Completed games.
+        items:
+          $ref: '#/definitions/dto.GameResponse'
+        type: array
+    type: object
+  dto.GameRequest:
+    properties:
+      field:
+        description: Current 3x3 field. 0 is empty, 1 is X, 2 is O.
+        items:
+          items:
+            type: integer
+          type: array
+        type: array
+      uuid:
+        description: Game UUID. Optional in request body; if present, it must match
+          the path UUID.
+        example: 123e4567-e89b-42d3-a456-426614174000
+        format: uuid
+        type: string
+    type: object
+  dto.GameResponse:
+    properties:
+      created_at:
+        description: Game creation date.
+        example: "2026-05-15T20:00:00Z"
+        format: date-time
+        type: string
+      field:
+        description: Current 3x3 field. 0 is empty, 1 is X, 2 is O.
+        items:
+          items:
+            type: integer
+          type: array
+        type: array
+      mode:
+        description: Game mode.
+        enum:
+        - computer
+        - player
+        example: computer
+        type: string
+      next_player_uuid:
+        description: UUID of the player who should move next, or "computer".
+        example: 123e4567-e89b-42d3-a456-426614174000
+        type: string
+      player_o_uuid:
+        description: UUID of the player using O, or "computer".
+        example: computer
+        type: string
+      player_x_uuid:
+        description: UUID of the player using X.
+        example: 123e4567-e89b-42d3-a456-426614174000
+        type: string
+      state:
+        description: Game state.
+        enum:
+        - waiting_players
+        - player_to_move
+        - draw
+        - player_wins
+        example: player_to_move
+        type: string
+      uuid:
+        description: Game UUID.
+        example: 123e4567-e89b-42d3-a456-426614174000
+        format: uuid
+        type: string
+      winner_uuid:
+        description: Winner UUID when state is player_wins.
+        example: 123e4567-e89b-42d3-a456-426614174000
+        type: string
+    type: object
+  dto.GamesResponse:
+    properties:
+      games:
+        description: Active games.
+        items:
+          $ref: '#/definitions/dto.GameResponse'
+        type: array
+    type: object
+  dto.JwtRequest:
+    properties:
+      login:
+        description: User login. Must not be empty.
+        example: player
+        type: string
+      password:
+        description: User password. Must not be empty.
+        example: secret
+        type: string
+    type: object
+  dto.JwtResponse:
+    properties:
+      accessToken:
+        description: Short-lived access token.
+        example: eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ...
+        type: string
+      refreshToken:
+        description: Long-lived refresh token.
+        example: eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ...
+        type: string
+      type:
+        description: Token type.
+        example: Bearer
+        type: string
+    type: object
+  dto.LeaderboardEntry:
+    properties:
+      login:
+        description: User login.
+        example: player
+        type: string
+      uuid:
+        description: User UUID.
+        example: 123e4567-e89b-42d3-a456-426614174000
+        format: uuid
+        type: string
+      winRatio:
+        description: Ratio of wins to losses and draws.
+        example: 1.5
+        type: number
+    type: object
+  dto.LeaderboardResponse:
+    properties:
+      players:
+        description: Best players.
+        items:
+          $ref: '#/definitions/dto.LeaderboardEntry'
+        type: array
+    type: object
+  dto.RefreshJwtRequest:
+    properties:
+      refreshToken:
+        description: Refresh token.
+        example: eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ...
+        type: string
+    type: object
+  dto.SignUpRequest:
+    properties:
+      login:
+        description: User login. Must not be empty.
+        example: player
+        type: string
+      password:
+        description: User password. Must not be empty.
+        example: secret
+        type: string
+    type: object
+  dto.SignUpResponse:
+    properties:
+      success:
+        description: Registration result.
+        example: true
+        type: boolean
+    type: object
+  dto.UserResponse:
+    properties:
+      login:
+        description: User login.
+        example: player
+        type: string
+      uuid:
+        description: User UUID.
+        example: 123e4567-e89b-42d3-a456-426614174000
+        format: uuid
+        type: string
+    type: object
+info:
+  contact: {}
+  description: HTTP API for user authentication and tic-tac-toe games.
+  title: Tic-Tac-Toe API
+  version: "1.0"
+paths:
+  /auth/sessions:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Request body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshJwtRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Logged out from all sessions
+        "400":
+          description: Invalid JSON
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Invalid refresh token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "415":
+          description: Request body must be application/json
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Logout failed
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Logout from all sessions
+      tags:
+      - auth
+    post:
+      consumes:
+      - application/json
+      description: Send login and password as JSON and receive Bearer access and refresh
+        tokens.
+      parameters:
+      - description: Request body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.JwtRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWT tokens
+          schema:
+            $ref: '#/definitions/dto.JwtResponse'
+        "400":
+          description: Invalid JSON
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Invalid or missing credentials
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "415":
+          description: Request body must be application/json
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Authentication failed
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Authenticate by login and password
+      tags:
+      - auth
+  /auth/sessions/current:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Request body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshJwtRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Logged out
+        "400":
+          description: Invalid JSON
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Invalid refresh token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "415":
+          description: Request body must be application/json
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Logout failed
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Logout
+      tags:
+      - auth
+  /auth/tokens/access:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Request body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshJwtRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWT tokens
+          schema:
+            $ref: '#/definitions/dto.JwtResponse'
+        "400":
+          description: Invalid JSON
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Invalid refresh token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "415":
+          description: Request body must be application/json
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Refresh failed
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Refresh access token
+      tags:
+      - auth
+  /auth/tokens/refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Request body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshJwtRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWT tokens
+          schema:
+            $ref: '#/definitions/dto.JwtResponse'
+        "400":
+          description: Invalid JSON
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Invalid refresh token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "415":
+          description: Request body must be application/json
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Refresh failed
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Refresh refresh token
+      tags:
+      - auth
+  /games:
+    get:
+      description: Returns active games visible to authenticated users. Request body
+        is not used.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Active games
+          schema:
+            $ref: '#/definitions/dto.GamesResponse'
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Games were not loaded
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List available games
+      tags:
+      - games
+    post:
+      consumes:
+      - application/json
+      description: Creates a computer game by default when the body is empty or mode
+        is omitted. Supported modes are "computer" and "player".
+      parameters:
+      - description: Request body. Can be omitted.
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/dto.CreateGameRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created game
+          schema:
+            $ref: '#/definitions/dto.GameResponse'
+        "400":
+          description: Invalid request body or mode
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "415":
+          description: Request body must be application/json
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Game was not saved
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new game
+      tags:
+      - games
+  /games/{uuid}:
+    get:
+      description: Returns the current saved state of one game. Request body is not
+        used.
+      parameters:
+      - default: 123e4567-e89b-42d3-a456-426614174000
+        description: Game UUID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Game state
+          schema:
+            $ref: '#/definitions/dto.GameResponse'
+        "400":
+          description: Invalid UUID
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Game not found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Game was not loaded
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get game by UUID
+      tags:
+      - games
+  /games/{uuid}/join:
+    post:
+      description: Joins an existing player-vs-player game that is waiting for a second
+        player. Request body is not used.
+      parameters:
+      - default: 123e4567-e89b-42d3-a456-426614174000
+        description: Game UUID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Joined game
+          schema:
+            $ref: '#/definitions/dto.GameResponse'
+        "400":
+          description: Game cannot be joined
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Game not found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Join was not saved
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Join a game
+      tags:
+      - games
+  /games/{uuid}/move:
+    post:
+      consumes:
+      - application/json
+      description: The request body UUID is optional. If it is present, it must match
+        the UUID from the path.
+      parameters:
+      - default: 123e4567-e89b-42d3-a456-426614174000
+        description: Game UUID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Request body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.GameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated game
+          schema:
+            $ref: '#/definitions/dto.GameResponse'
+        "400":
+          description: Invalid body, invalid move, or UUID mismatch
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Game not found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "415":
+          description: Request body must be application/json
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Move was not saved
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Apply a move
+      tags:
+      - games
+  /games/history:
+    get:
+      description: Returns games completed by the authenticated user. Includes wins
+        by the user and draws involving the user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Completed games
+          schema:
+            $ref: '#/definitions/dto.GameHistoryResponse'
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Games were not loaded
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List completed games
+      tags:
+      - games
+  /games/leaderboard:
+    get:
+      description: Returns the best players sorted by win ratio in descending order.
+      parameters:
+      - default: 10
+        description: Number of top players
+        in: query
+        maximum: 100
+        minimum: 1
+        name: "n"
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Top players
+          schema:
+            $ref: '#/definitions/dto.LeaderboardResponse'
+        "400":
+          description: Invalid limit
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Leaderboard was not loaded
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List top players
+      tags:
+      - games
+  /users:
+    post:
+      consumes:
+      - application/json
+      description: Creates a user by login and password. Login is trimmed, password
+        is stored as a hash.
+      parameters:
+      - description: Request body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SignUpRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User registered
+          schema:
+            $ref: '#/definitions/dto.SignUpResponse'
+        "400":
+          description: Invalid JSON or empty login/password
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Login already exists
+          schema:
+            $ref: '#/definitions/dto.SignUpResponse'
+        "415":
+          description: Request body must be application/json
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Registration failed
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Register a new user
+      tags:
+      - auth
+  /users/{uuid}:
+    get:
+      description: Returns public user information. Request body is not used.
+      parameters:
+      - default: 123e4567-e89b-42d3-a456-426614174000
+        description: User UUID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "400":
+          description: Invalid UUID
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: User was not loaded
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user by UUID
+      tags:
+      - users
+  /users/me:
+    get:
+      description: Returns public user information for the authenticated Bearer token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: User was not loaded
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - users
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
