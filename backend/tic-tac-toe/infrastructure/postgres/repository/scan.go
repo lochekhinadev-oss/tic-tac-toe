@@ -45,6 +45,13 @@ func requiredTime(field string, value sql.NullTime) (time.Time, error) {
 	return value.Time, nil
 }
 
+func requiredInt64(field string, value sql.NullInt64) (int64, error) {
+	if !value.Valid {
+		return 0, fmt.Errorf("%w: %s is required", ErrInvalidDatabaseRow, field)
+	}
+	return value.Int64, nil
+}
+
 func scanGames(rows pgx.Rows, operation string) ([]domain.Game, error) {
 	var games []domain.Game
 	for rows.Next() {

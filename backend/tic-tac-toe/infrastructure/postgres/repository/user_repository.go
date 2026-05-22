@@ -19,7 +19,12 @@ var (
 )
 
 const (
-	saveUserQuery           = "INSERT INTO users (uuid, login, password) VALUES ($1, $2, $3)"
+	saveUserQuery           = `WITH inserted AS (
+    INSERT INTO users (uuid, login, password) VALUES ($1, $2, $3)
+    RETURNING uuid
+)
+INSERT INTO user_roles (user_uuid, role_name)
+SELECT uuid, $4 FROM inserted`
 	getUserByLoginQuery     = "SELECT uuid, login, password FROM users WHERE login = $1 AND deleted_at IS NULL"
 	getUserByUUIDQuery      = "SELECT uuid, login, password FROM users WHERE uuid = $1 AND deleted_at IS NULL"
 	updateUserPasswordQuery = "UPDATE users SET password = $2 WHERE uuid = $1 AND deleted_at IS NULL"
@@ -44,6 +49,7 @@ func (r *PostgresUserRepository) SaveUser(ctx context.Context, user domain.User)
 		datasourceUser.UUID,
 		datasourceUser.Login,
 		datasourceUser.Password,
+		domain.DefaultPlayerRole,
 	)
 	if isUniqueViolation(err) {
 		logRepository("save user duplicate login=%q: %v", user.Login, err)

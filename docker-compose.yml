@@ -10,8 +10,6 @@ services:
         condition: service_healthy
     expose:
       - "8080"
-    volumes:
-      - ./secrets/jwt:/app/secrets/jwt:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null"]
       interval: 10s
@@ -91,9 +89,11 @@ services:
       - frontend
       - backend
     ports:
-      - "3000:80"
+      - "3000:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- https://127.0.0.1/healthz >/dev/null"]
       interval: 10s
       timeout: 3s
       retries: 5

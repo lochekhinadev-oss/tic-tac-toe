@@ -32,7 +32,7 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 		{
 			name: "authenticate",
 			handlerCall: func(rec *httptest.ResponseRecorder) {
-				handler := NewAuthHandler(authHandlerServiceStub{authErr: errors.New(internalErrorText)})
+				handler := NewAuthHandler(authHandlerServiceStub{signInErr: errors.New(internalErrorText)})
 				_, req := newAuthRequest(http.MethodPost, "/auth/sessions", `{"login":"player","password":"secret"}`)
 				handler.Authenticate(rec, req)
 			},
@@ -43,7 +43,8 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			name: "refresh access",
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := NewAuthHandler(authHandlerServiceStub{refreshErr: errors.New(internalErrorText)})
-				_, req := newAuthRequest(http.MethodPost, "/auth/tokens/access", `{"refreshToken":"refresh"}`)
+				_, req := newAuthRequest(http.MethodPost, "/auth/tokens/access", "")
+				req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 				handler.RefreshAccessToken(rec, req)
 			},
 			status:  http.StatusInternalServerError,
@@ -53,7 +54,8 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			name: "refresh refresh",
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := NewAuthHandler(authHandlerServiceStub{refreshErr: errors.New(internalErrorText)})
-				_, req := newAuthRequest(http.MethodPost, "/auth/tokens/refresh", `{"refreshToken":"refresh"}`)
+				_, req := newAuthRequest(http.MethodPost, "/auth/tokens/refresh", "")
+				req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 				handler.RefreshRefreshToken(rec, req)
 			},
 			status:  http.StatusInternalServerError,
@@ -63,7 +65,8 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			name: "logout",
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := NewAuthHandler(authHandlerServiceStub{logoutErr: errors.New(internalErrorText)})
-				_, req := newAuthRequest(http.MethodDelete, "/auth/sessions/current", `{"refreshToken":"refresh"}`)
+				_, req := newAuthRequest(http.MethodDelete, "/auth/sessions/current", "")
+				req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 				handler.Logout(rec, req)
 			},
 			status:  http.StatusInternalServerError,
@@ -73,7 +76,8 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			name: "logout all",
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := NewAuthHandler(authHandlerServiceStub{logoutAllErr: errors.New(internalErrorText)})
-				_, req := newAuthRequest(http.MethodDelete, "/auth/sessions", `{"refreshToken":"refresh"}`)
+				_, req := newAuthRequest(http.MethodDelete, "/auth/sessions", "")
+				req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 				handler.LogoutAll(rec, req)
 			},
 			status:  http.StatusInternalServerError,
@@ -177,19 +181,19 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 
 			tt.handlerCall(rec)
 
-			assertStatusAndMessage(t, rec, tt.status, tt.message)
+			assertAuthStatusAndMessage(t, rec, tt.status, tt.message)
 			assertBodyDoesNotContain(t, rec, internalErrorText)
 		})
 	}
 }
 
 func TestUnauthorizedAuthErrorsStayGeneric(t *testing.T) {
-	handler := NewAuthHandler(authHandlerServiceStub{authErr: authservice.ErrInvalidCredentials})
+	handler := NewAuthHandler(authHandlerServiceStub{signInErr: authservice.ErrInvalidCredentials})
 	rec, req := newAuthRequest(http.MethodPost, "/auth/sessions", `{"login":"player","password":"wrong"}`)
 
 	handler.Authenticate(rec, req)
 
-	assertStatusAndMessage(t, rec, http.StatusUnauthorized, "unauthorized")
+	assertAuthStatusAndMessage(t, rec, http.StatusUnauthorized, "unauthorized")
 	assertBodyDoesNotContain(t, rec, "invalid credentials")
 }
 

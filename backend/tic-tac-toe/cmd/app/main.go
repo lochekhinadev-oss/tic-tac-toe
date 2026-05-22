@@ -7,9 +7,9 @@ import "tic-tac-toe/internal/di"
 // @description HTTP API for user authentication and tic-tac-toe games.
 // @BasePath /
 // @schemes http
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
+// @securityDefinitions.apikey SessionCookieAuth
+// @in cookie
+// @name tic-tac-toe.session
 func main() {
 	di.NewApp().Run()
 }

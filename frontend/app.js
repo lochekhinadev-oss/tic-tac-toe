@@ -26,15 +26,10 @@ const computerSymbolNode = document.getElementById("computer-symbol");
 const sessionNode = document.getElementById("session-id");
 
 const storageKeys = {
-  accessToken: "tic-tac-toe.accessToken",
-  refreshToken: "tic-tac-toe.refreshToken",
   gameID: "tic-tac-toe.gameID"
 };
 
 let gameID = "";
-let authHeader = "";
-let accessToken = "";
-let refreshToken = "";
 let userUUID = "";
 let board = createEmptyBoard();
 let currentGame = null;
@@ -65,30 +60,14 @@ function symbolForCell(value) {
 
 function winningCellsForBoard(sourceBoard) {
   const lines = [
-    [
-      [0, 0], [0, 1], [0, 2]
-    ],
-    [
-      [1, 0], [1, 1], [1, 2]
-    ],
-    [
-      [2, 0], [2, 1], [2, 2]
-    ],
-    [
-      [0, 0], [1, 0], [2, 0]
-    ],
-    [
-      [0, 1], [1, 1], [2, 1]
-    ],
-    [
-      [0, 2], [1, 2], [2, 2]
-    ],
-    [
-      [0, 0], [1, 1], [2, 2]
-    ],
-    [
-      [0, 2], [1, 1], [2, 0]
-    ]
+    [[0, 0], [0, 1], [0, 2]],
+    [[1, 0], [1, 1], [1, 2]],
+    [[2, 0], [2, 1], [2, 2]],
+    [[0, 0], [1, 0], [2, 0]],
+    [[0, 1], [1, 1], [2, 1]],
+    [[0, 2], [1, 2], [2, 2]],
+    [[0, 0], [1, 1], [2, 2]],
+    [[0, 2], [1, 1], [2, 0]]
   ];
 
   for (const line of lines) {
@@ -117,7 +96,7 @@ function updateSession() {
 }
 
 function updateAuthControls() {
-  const loggedIn = Boolean(authHeader);
+  const loggedIn = Boolean(userUUID);
   logoutButton.disabled = !loggedIn;
   deleteAccountButton.disabled = !loggedIn;
 }
@@ -161,43 +140,6 @@ function renderLeaderboard(players) {
   });
 }
 
-function canRetryAuth(path, options) {
-  if (options.skipAuth === true || options.retryAuth === false || !refreshToken) {
-    return false;
-  }
-
-  if (path === "/auth" || path === "/signup" || path.startsWith("/auth/")) {
-    return false;
-  }
-
-  return true;
-}
-
-function persistSession(tokens) {
-  accessToken = tokens.accessToken || "";
-  refreshToken = tokens.refreshToken || "";
-  authHeader = accessToken ? `${tokens.type || "Bearer"} ${accessToken}` : "";
-
-  if (accessToken) {
-    localStorage.setItem(storageKeys.accessToken, accessToken);
-  } else {
-    localStorage.removeItem(storageKeys.accessToken);
-  }
-
-  if (refreshToken) {
-    localStorage.setItem(storageKeys.refreshToken, refreshToken);
-  } else {
-    localStorage.removeItem(storageKeys.refreshToken);
-  }
-
-  updateAuthControls();
-}
-
-function clearStoredSession() {
-  localStorage.removeItem(storageKeys.accessToken);
-  localStorage.removeItem(storageKeys.refreshToken);
-}
-
 function clearGameState() {
   gameID = "";
   currentGame = null;
@@ -209,11 +151,7 @@ function clearGameState() {
 }
 
 function clearAuthState(message) {
-  accessToken = "";
-  refreshToken = "";
-  authHeader = "";
   userUUID = "";
-  clearStoredSession();
   clearGameState();
   gamesNode.innerHTML = "";
   renderLeaderboardEmpty("sign in to unlock the leaderboard.");
@@ -267,58 +205,28 @@ async function readResponsePayload(response) {
   return response.json().catch(() => ({}));
 }
 
-function playerSymbol() {
-  if (currentGame && currentGame.player_o_uuid === userUUID) {
-    return COMPUTER;
-  }
-
-  return USER;
-}
-
 async function api(path, options = {}) {
   const headers = Object.assign({}, options.headers || {});
-  if (options.skipAuth !== true && authHeader) {
-    headers.Authorization = authHeader;
-  }
   if (options.body && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(path, Object.assign({}, options, { headers }));
+  const response = await fetch(path, Object.assign({}, options, {
+    headers,
+    credentials: "include"
+  }));
   const payload = await readResponsePayload(response);
-  if (response.status === 401 && canRetryAuth(path, options)) {
-    try {
-      await refreshAccessToken();
-      return api(path, Object.assign({}, options, { retryAuth: false }));
-    } catch (error) {
-      clearAuthState(error.message || "session expired. sign in again.");
-      throw new Error(error.message || "session expired. sign in again.");
-    }
-  }
   if (!response.ok) {
+    if (response.status === 401 && userUUID) {
+      clearAuthState("session expired. sign in again.");
+    }
     throw new Error(payload.message || "request failed");
   }
   return payload;
 }
 
-async function refreshAccessToken() {
-  if (!refreshToken) {
-    throw new Error("session expired. sign in again.");
-  }
-
-  const tokens = await api("/auth/refresh/access", {
-    method: "POST",
-    body: JSON.stringify({ refreshToken }),
-    skipAuth: true,
-    retryAuth: false
-  });
-
-  persistSession(tokens);
-  return tokens;
-}
-
 async function loadLeaderboard() {
-  if (!authHeader) {
+  if (!userUUID) {
     renderLeaderboardEmpty("sign in to unlock the leaderboard.");
     return;
   }
@@ -338,7 +246,7 @@ function credentials() {
 
 async function signUp() {
   const data = credentials();
-  await api("/signup", {
+  await api("/users", {
     method: "POST",
     body: JSON.stringify(data)
   });
@@ -351,15 +259,15 @@ async function signIn(event = null) {
   }
 
   const data = credentials();
-  const tokens = await api("/auth", {
+  const payload = await api("/auth/sessions", {
     method: "POST",
     body: JSON.stringify(data)
   });
 
-  persistSession(tokens);
-  const user = await api("/users/me");
-  userUUID = user.uuid;
+  userUUID = payload.uuid || "";
   updateUser();
+  updateAuthControls();
+  updateStatus("session created.");
   await startNewGame();
 }
 
@@ -421,7 +329,7 @@ function renderBoard() {
         button.classList.add("cell--win");
       }
 
-      button.disabled = busy || finished || !authHeader || value !== EMPTY;
+      button.disabled = busy || finished || !userUUID || value !== EMPTY;
       button.setAttribute("aria-label", `Клетка ${row + 1}-${col + 1}${value ? `: ${symbolForCell(value)}` : ", пустая"}`);
       button.addEventListener("click", () => {
         void makeMove(row, col);
@@ -435,7 +343,7 @@ async function makeMove(row, col) {
   if (
     busy ||
     finished ||
-    !authHeader ||
+    !userUUID ||
     !currentGame ||
     currentGame.next_player_uuid !== userUUID ||
     board[row][col] !== EMPTY
@@ -473,6 +381,14 @@ async function makeMove(row, col) {
   }
 }
 
+function playerSymbol() {
+  if (currentGame && currentGame.player_o_uuid === userUUID) {
+    return COMPUTER;
+  }
+
+  return USER;
+}
+
 async function startNewGame() {
   await createGame("computer");
 }
@@ -483,7 +399,7 @@ async function hostPlayerGame() {
 }
 
 async function createGame(mode) {
-  if (!authHeader) {
+  if (!userUUID) {
     board = createEmptyBoard();
     currentGame = null;
     finished = false;
@@ -514,7 +430,7 @@ async function createGame(mode) {
 }
 
 async function loadGames() {
-  if (!authHeader) {
+  if (!userUUID) {
     gamesNode.innerHTML = "";
     return;
   }
@@ -551,7 +467,7 @@ async function loadGames() {
 }
 
 async function refreshCurrentGame() {
-  if (!authHeader || !gameID) {
+  if (!userUUID || !gameID) {
     return;
   }
 
@@ -569,26 +485,11 @@ async function refreshCurrentGame() {
 }
 
 async function restoreSession() {
-  const storedRefreshToken = localStorage.getItem(storageKeys.refreshToken);
-  if (!storedRefreshToken) {
-    clearAuthState("awaiting login...");
-    return false;
-  }
-
-  refreshToken = storedRefreshToken;
-
   try {
-    const tokens = await api("/auth/refresh/access", {
-      method: "POST",
-      body: JSON.stringify({ refreshToken: storedRefreshToken }),
-      skipAuth: true,
-      retryAuth: false
-    });
-    persistSession(tokens);
-
-    const user = await api("/users/me");
+    const user = await api("/users/me", { method: "GET" });
     userUUID = user.uuid;
     updateUser();
+    updateAuthControls();
 
     clearGameState();
     updateStatus("session restored.");
@@ -598,39 +499,30 @@ async function restoreSession() {
     await startNewGame();
     return true;
   } catch (error) {
-    clearAuthState("session expired. sign in again.");
+    clearAuthState("awaiting login...");
     return false;
   }
 }
 
 async function signOut() {
-  if (!refreshToken) {
-    clearAuthState("signed out.");
-    return;
-  }
-
   try {
-    await api("/auth/logout", {
-      method: "POST",
-      body: JSON.stringify({ refreshToken }),
-      skipAuth: true,
-      retryAuth: false
+    await api("/auth/sessions/current", {
+      method: "DELETE"
     });
   } catch (error) {
-    // Clear local state even if the server-side revoke failed or the token is already invalid.
+    // Clear local state even if the server-side revoke failed or the session is already invalid.
   } finally {
     clearAuthState("signed out.");
   }
 }
 
 async function deleteAccount() {
-  if (!authHeader) {
+  if (!userUUID) {
     clearAuthState("sign in to delete the account.");
     return;
   }
 
   const confirmed = await openDeleteConfirm();
-
   if (!confirmed) {
     return;
   }
@@ -727,7 +619,7 @@ updateSession();
 updateAuthControls();
 void initializeApp();
 setInterval(() => {
-  if (authHeader && gameID && currentGame && currentGame.mode === "player" && !busy && !finished) {
+  if (userUUID && gameID && currentGame && currentGame.mode === "player" && !busy && !finished) {
     void refreshCurrentGame();
   }
 }, 3000);

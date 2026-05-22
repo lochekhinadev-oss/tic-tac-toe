@@ -10,7 +10,7 @@ import (
 
 const (
 	jsonContentType    = "application/json"
-	unauthorizedHeader = `Bearer realm="tic-tac-toe"`
+	unauthorizedHeader = `Session realm="tic-tac-toe"`
 )
 
 func WriteError(w http.ResponseWriter, status int, message string) {
@@ -44,6 +44,10 @@ func WriteMethodNotAllowed(w http.ResponseWriter, message string) {
 func WriteUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", unauthorizedHeader)
 	WriteError(w, http.StatusUnauthorized, messages.Unauthorized)
+}
+
+func WriteForbidden(w http.ResponseWriter) {
+	WriteError(w, http.StatusForbidden, messages.Forbidden)
 }
 
 func WriteTooManyRequests(w http.ResponseWriter, message string) {

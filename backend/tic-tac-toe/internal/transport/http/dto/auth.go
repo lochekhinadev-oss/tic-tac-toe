@@ -14,25 +14,11 @@ type SignUpResponse struct {
 	Success bool `json:"success" example:"true"`
 }
 
-type JwtRequest struct {
+type AuthRequest struct {
 	// User login. Must not be empty.
 	Login string `json:"login" example:"player"`
 	// User password. Must not be empty.
 	Password string `json:"password" example:"secret"`
-}
-
-type JwtResponse struct {
-	// Token type.
-	Type string `json:"type" example:"Bearer"`
-	// Short-lived access token.
-	AccessToken string `json:"accessToken" example:"eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ..."`
-	// Long-lived refresh token.
-	RefreshToken string `json:"refreshToken" example:"eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ..."`
-}
-
-type RefreshJwtRequest struct {
-	// Refresh token.
-	RefreshToken string `json:"refreshToken" example:"eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ..."`
 }
 
 type AuthResponse struct {

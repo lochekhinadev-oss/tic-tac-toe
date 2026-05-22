@@ -1,15 +1,17 @@
 package auth
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type AuthService interface {
 	SignUp(ctx context.Context, request SignUpRequest) (bool, error)
-	Authenticate(ctx context.Context, request JwtRequest) (JwtResponse, error)
-	RefreshAccessToken(ctx context.Context, refreshToken string) (JwtResponse, error)
-	RefreshRefreshToken(ctx context.Context, refreshToken string) (JwtResponse, error)
-	Logout(ctx context.Context, refreshToken string) error
-	LogoutAll(ctx context.Context, refreshToken string) error
-	AuthenticateToken(ctx context.Context, header string) (string, error)
+	SignIn(ctx context.Context, request SessionRequest) (SessionResponse, error)
+	RefreshSession(ctx context.Context, sessionID string) (SessionResponse, error)
+	Logout(ctx context.Context, sessionID string) error
+	LogoutAll(ctx context.Context, sessionID string) error
+	AuthenticateSession(ctx context.Context, sessionID string) (string, error)
 }
 
 type SignUpRequest struct {
@@ -17,17 +19,13 @@ type SignUpRequest struct {
 	Password string
 }
 
-type JwtRequest struct {
+type SessionRequest struct {
 	Login    string
 	Password string
 }
 
-type JwtResponse struct {
-	Type         string
-	AccessToken  string
-	RefreshToken string
-}
-
-type RefreshJwtRequest struct {
-	RefreshToken string
+type SessionResponse struct {
+	UserUUID  string
+	SessionID string
+	ExpiresAt time.Time
 }

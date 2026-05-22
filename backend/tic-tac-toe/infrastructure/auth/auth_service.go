@@ -8,13 +8,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/postgres/repository"
 )
 
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrInvalidAuthHeader  = errors.New("invalid authorization header")
+	ErrInvalidToken       = errors.New("invalid token")
 	ErrInvalidSignUp      = errors.New("login or password is invalid")
 )
 
@@ -25,21 +27,23 @@ const (
 	maxPasswordLength = 128
 )
 
-type JwtAuthService struct {
-	users    domain.UserService
-	sessions repository.AuthSessionRepository
-	jwt      *JwtProvider
+type service struct {
+	users         domain.UserService
+	authorization domain.AuthorizationService
+	sessions      repository.AuthSessionRepository
+	sessionTTL    time.Duration
 }
 
-func NewAuthService(users domain.UserService, sessions repository.AuthSessionRepository, jwt *JwtProvider) *JwtAuthService {
-	return &JwtAuthService{
-		users:    users,
-		sessions: sessions,
-		jwt:      jwt,
+func NewAuthService(users domain.UserService, authorization domain.AuthorizationService, sessions repository.AuthSessionRepository, config AuthConfig) *service {
+	return &service{
+		users:         users,
+		authorization: authorization,
+		sessions:      sessions,
+		sessionTTL:    config.SessionTTL,
 	}
 }
 
-func (s *JwtAuthService) SignUp(ctx context.Context, request SignUpRequest) (bool, error) {
+func (s *service) SignUp(ctx context.Context, request SignUpRequest) (bool, error) {
 	request.Login = strings.TrimSpace(request.Login)
 	logAuth("sign up request login=%q", request.Login)
 	if !validCredentials(request.Login, request.Password) {
@@ -64,214 +68,162 @@ func (s *JwtAuthService) SignUp(ctx context.Context, request SignUpRequest) (boo
 	return true, nil
 }
 
-func (s *JwtAuthService) Authenticate(ctx context.Context, request JwtRequest) (JwtResponse, error) {
-	logAuth("authenticate request")
+func (s *service) SignIn(ctx context.Context, request SessionRequest) (SessionResponse, error) {
+	logAuth("sign in request")
 
 	request.Login = strings.TrimSpace(request.Login)
 	if !validCredentials(request.Login, request.Password) {
-		logAuth("authenticate invalid credentials payload")
-		return JwtResponse{}, ErrInvalidCredentials
+		logAuth("sign in invalid credentials payload")
+		return SessionResponse{}, ErrInvalidCredentials
 	}
 
 	user, err := s.users.GetUserByLogin(ctx, request.Login)
 	if errors.Is(err, domain.ErrUserNotFound) {
-		logAuth("authenticate user not found login=%q", request.Login)
-		return JwtResponse{}, ErrInvalidCredentials
+		logAuth("sign in user not found login=%q", request.Login)
+		return SessionResponse{}, ErrInvalidCredentials
 	}
 	if err != nil {
-		logAuth("authenticate load user failed login=%q: %v", request.Login, err)
-		return JwtResponse{}, err
+		logAuth("sign in load user failed login=%q: %v", request.Login, err)
+		return SessionResponse{}, err
 	}
+
 	ok, needsUpdate := s.users.VerifyPassword(user, request.Password)
 	if !ok {
-		logAuth("authenticate invalid credentials login=%q uuid=%q", request.Login, user.UUID)
-		return JwtResponse{}, ErrInvalidCredentials
+		logAuth("sign in invalid credentials login=%q uuid=%q", request.Login, user.UUID)
+		return SessionResponse{}, ErrInvalidCredentials
 	}
 	if needsUpdate {
 		if err := s.users.UpdatePassword(ctx, user.UUID, request.Password); err != nil {
-			logAuth("authenticate password migration failed uuid=%q: %v", user.UUID, err)
-			return JwtResponse{}, err
+			logAuth("sign in password migration failed uuid=%q: %v", user.UUID, err)
+			return SessionResponse{}, err
 		}
 	}
 
-	response, _, err := s.issueSession(ctx, user)
-	if err != nil {
-		logAuth("authenticate token generation failed uuid=%q: %v", user.UUID, err)
-		return JwtResponse{}, err
+	if s.authorization != nil {
+		if err := s.authorization.GrantDefaultRole(ctx, user.UUID); err != nil {
+			logAuth("sign in default role grant failed uuid=%q: %v", user.UUID, err)
+			return SessionResponse{}, err
+		}
 	}
 
-	logAuth("authenticate ok login=%q uuid=%q", request.Login, user.UUID)
-	return response, nil
+	session, err := s.issueCookieSession(ctx, user)
+	if err != nil {
+		logAuth("sign in session generation failed uuid=%q: %v", user.UUID, err)
+		return SessionResponse{}, err
+	}
+
+	logAuth("sign in ok login=%q uuid=%q", request.Login, user.UUID)
+	return session, nil
 }
 
-func (s *JwtAuthService) RefreshAccessToken(ctx context.Context, refreshToken string) (JwtResponse, error) {
-	logAuth("refresh access token request")
-	session, user, err := s.activeSessionByRefreshToken(ctx, refreshToken)
+func (s *service) RefreshSession(ctx context.Context, sessionID string) (SessionResponse, error) {
+	logAuth("refresh session request")
+	session, user, err := s.activeSessionBySessionID(ctx, sessionID)
 	if err != nil {
-		return JwtResponse{}, err
-	}
-
-	accessToken, err := s.jwt.GenerateAccessToken(user)
-	if err != nil {
-		return JwtResponse{}, err
-	}
-	logAuth("refresh access ok user=%q session_found=%t", user.UUID, session.RefreshJTIHash != "")
-	return JwtResponse{Type: tokenTypeBearer, AccessToken: accessToken, RefreshToken: refreshToken}, nil
-}
-
-func (s *JwtAuthService) RefreshRefreshToken(ctx context.Context, refreshToken string) (JwtResponse, error) {
-	logAuth("refresh refresh token request")
-	session, user, err := s.activeSessionByRefreshToken(ctx, refreshToken)
-	if err != nil {
-		return JwtResponse{}, err
-	}
-
-	response, newSession, err := s.issueSession(ctx, user)
-	if err != nil {
-		return JwtResponse{}, err
+		return SessionResponse{}, err
 	}
 
 	if err := s.sessions.RevokeSession(ctx, session.RefreshJTIHash); err != nil {
-		logAuth("refresh refresh revoke old session failed user=%q: %v", user.UUID, err)
-		_ = s.sessions.RevokeSession(ctx, newSession.RefreshJTIHash)
-		return JwtResponse{}, err
+		logAuth("refresh session revoke old failed user=%q: %v", user.UUID, err)
+		return SessionResponse{}, err
 	}
 
-	logAuth("refresh refresh ok user=%q old_revoked=%t new_created=%t", user.UUID, session.RefreshJTIHash != "", newSession.RefreshJTIHash != "")
-	return response, nil
+	refreshed, err := s.issueCookieSession(ctx, user)
+	if err != nil {
+		logAuth("refresh session create new failed user=%q: %v", user.UUID, err)
+		return SessionResponse{}, err
+	}
+
+	logAuth("refresh session ok user=%q old_revoked=%t new_created=%t", user.UUID, session.RefreshJTIHash != "", refreshed.SessionID != "")
+	return refreshed, nil
 }
 
-func (s *JwtAuthService) Logout(ctx context.Context, refreshToken string) error {
+func (s *service) Logout(ctx context.Context, sessionID string) error {
 	logAuth("logout request")
-	session, user, err := s.activeSessionByRefreshToken(ctx, refreshToken)
+	session, user, err := s.activeSessionBySessionID(ctx, sessionID)
 	if err != nil {
 		return err
 	}
-
 	if err := s.sessions.RevokeSession(ctx, session.RefreshJTIHash); err != nil {
 		return err
 	}
-
-	logAuth("logout ok user=%q session_revoked=%t", user.UUID, session.RefreshJTIHash != "")
+	logAuth("logout session ok user=%q session_revoked=%t", user.UUID, session.RefreshJTIHash != "")
 	return nil
 }
 
-func (s *JwtAuthService) LogoutAll(ctx context.Context, refreshToken string) error {
+func (s *service) LogoutAll(ctx context.Context, sessionID string) error {
 	logAuth("logout all request")
-	session, user, err := s.activeSessionByRefreshToken(ctx, refreshToken)
+	session, user, err := s.activeSessionBySessionID(ctx, sessionID)
 	if err != nil {
 		return err
 	}
-
 	rows, err := s.sessions.RevokeSessionsByUserUUID(ctx, user.UUID)
 	if err != nil {
 		return err
 	}
-
-	logAuth("logout all ok user=%q session_found=%t revoked=%d", user.UUID, session.RefreshJTIHash != "", rows)
+	logAuth("logout all sessions ok user=%q session_found=%t revoked=%d", user.UUID, session.RefreshJTIHash != "", rows)
 	return nil
 }
 
-func (s *JwtAuthService) AuthenticateToken(ctx context.Context, header string) (string, error) {
-	token, err := parseBearerAuthorizationHeader(header)
+func (s *service) AuthenticateSession(ctx context.Context, sessionID string) (string, error) {
+	session, user, err := s.activeSessionBySessionID(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
-	uuid, err := s.jwt.UUIDFromToken(token)
-	if err != nil {
-		return "", ErrInvalidToken
-	}
-	if _, err := s.users.GetUserByUUID(ctx, uuid); errors.Is(err, domain.ErrUserNotFound) {
-		logAuth("authenticate token user not found uuid=%q", uuid)
-		return "", ErrInvalidToken
-	} else if err != nil {
-		logAuth("authenticate token load user failed uuid=%q: %v", uuid, err)
-		return "", err
-	}
-	return uuid, nil
+	logAuth("authenticate session ok user=%q session_found=%t", user.UUID, session.RefreshJTIHash != "")
+	return user.UUID, nil
 }
 
-func (s *JwtAuthService) userByToken(ctx context.Context, token string) (domain.User, error) {
-	uuid, err := s.jwt.UUIDFromToken(token)
-	if err != nil {
-		return domain.User{}, ErrInvalidToken
+func (s *service) issueCookieSession(ctx context.Context, user domain.User) (SessionResponse, error) {
+	if strings.TrimSpace(user.UUID) == "" {
+		return SessionResponse{}, ErrInvalidCredentials
 	}
 
-	user, err := s.users.GetUserByUUID(ctx, uuid)
-	if errors.Is(err, domain.ErrUserNotFound) {
-		return domain.User{}, ErrInvalidToken
-	}
-	return user, err
-}
-
-func (s *JwtAuthService) jwtResponse(user domain.User, refreshToken string) (JwtResponse, error) {
-	accessToken, err := s.jwt.GenerateAccessToken(user)
-	if err != nil {
-		return JwtResponse{}, err
-	}
-	if refreshToken == "" {
-		refreshToken, err = s.jwt.GenerateRefreshToken(user)
-		if err != nil {
-			return JwtResponse{}, err
-		}
-	}
-	return JwtResponse{Type: tokenTypeBearer, AccessToken: accessToken, RefreshToken: refreshToken}, nil
-}
-
-func (s *JwtAuthService) issueSession(ctx context.Context, user domain.User) (JwtResponse, repository.RefreshSession, error) {
-	response, err := s.jwtResponse(user, "")
-	if err != nil {
-		return JwtResponse{}, repository.RefreshSession{}, err
-	}
-
-	refreshClaims, err := s.jwt.parseToken(response.RefreshToken, jwtTypeRefresh)
-	if err != nil {
-		return JwtResponse{}, repository.RefreshSession{}, err
-	}
-
+	sessionID := uuid.NewString()
 	now := time.Now().UTC()
+	sessionTTL := s.sessionTTL
+	if sessionTTL <= 0 {
+		sessionTTL = defaultSessionTTL
+	}
 	session := repository.RefreshSession{
-		RefreshJTIHash: hashTokenID(refreshClaims.ID),
+		RefreshJTIHash: hashTokenID(sessionID),
 		UserUUID:       user.UUID,
 		CreatedAt:      now,
-		ExpiresAt:      refreshClaims.ExpiresAt.Time.UTC(),
+		ExpiresAt:      now.Add(sessionTTL),
 		LastUsedAt:     now,
 	}
 	if err := s.sessions.CreateSession(ctx, session); err != nil {
-		return JwtResponse{}, repository.RefreshSession{}, err
+		return SessionResponse{}, err
 	}
-
-	return response, session, nil
+	return SessionResponse{
+		UserUUID:  user.UUID,
+		SessionID: sessionID,
+		ExpiresAt: session.ExpiresAt,
+	}, nil
 }
 
-func (s *JwtAuthService) activeSessionByRefreshToken(ctx context.Context, refreshToken string) (repository.RefreshSession, domain.User, error) {
-	claims, err := s.jwt.parseToken(refreshToken, jwtTypeRefresh)
-	if err != nil {
-		logAuth("invalid refresh token: %v", err)
+func (s *service) activeSessionBySessionID(ctx context.Context, sessionID string) (repository.RefreshSession, domain.User, error) {
+	if strings.TrimSpace(sessionID) == "" {
 		return repository.RefreshSession{}, domain.User{}, ErrInvalidToken
 	}
 
-	session, err := s.sessions.FindActiveSessionByRefreshJTIHash(ctx, hashTokenID(claims.ID))
+	session, err := s.sessions.FindActiveSessionByRefreshJTIHash(ctx, hashTokenID(sessionID))
 	if errors.Is(err, repository.ErrSessionNotFound) {
-		logAuth("refresh session not found user=%q", claims.UUID)
+		logAuth("session not found")
 		return repository.RefreshSession{}, domain.User{}, ErrInvalidToken
 	}
 	if err != nil {
-		logAuth("load refresh session failed user=%q: %v", claims.UUID, err)
+		logAuth("load session failed: %v", err)
 		return repository.RefreshSession{}, domain.User{}, err
-	}
-	if session.UserUUID != claims.UUID {
-		logAuth("refresh session user mismatch token_user=%q session_user=%q", claims.UUID, session.UserUUID)
-		return repository.RefreshSession{}, domain.User{}, ErrInvalidToken
 	}
 
 	user, err := s.users.GetUserByUUID(ctx, session.UserUUID)
 	if errors.Is(err, domain.ErrUserNotFound) {
-		logAuth("refresh session user missing uuid=%q", session.UserUUID)
+		logAuth("session user missing uuid=%q", session.UserUUID)
 		return repository.RefreshSession{}, domain.User{}, ErrInvalidToken
 	}
 	if err != nil {
-		logAuth("load user for refresh failed uuid=%q: %v", session.UserUUID, err)
+		logAuth("load user for session failed uuid=%q: %v", session.UserUUID, err)
 		return repository.RefreshSession{}, domain.User{}, err
 	}
 

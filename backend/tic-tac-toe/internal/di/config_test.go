@@ -1,10 +1,6 @@
 package di
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"strings"
 	"testing"
 	"time"
@@ -43,33 +39,16 @@ func TestNormalizeHTTPPort(t *testing.T) {
 
 func testAuthConfig(t *testing.T) auth.AuthConfig {
 	t.Helper()
-
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate rsa key: %v", err)
-	}
-	privatePEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	publicBytes, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
-	if err != nil {
-		t.Fatalf("marshal public key: %v", err)
-	}
-	publicPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: publicBytes})
-
 	return auth.AuthConfig{
-		JWTPrivateKeyPEM: string(privatePEM),
-		JWTPublicKeyPEM:  string(publicPEM),
-		JWTKeyID:         "kid-1",
-		JWTIssuer:        "tic-tac-toe",
-		JWTAudience:      "tic-tac-toe-api",
-		AccessTokenTTL:   time.Minute,
-		RefreshTokenTTL:  time.Hour,
+		SessionCookieName: "tic-tac-toe.session",
+		SessionTTL:        time.Hour,
 	}
 }
 
 func TestValidateConfigsRejectsInvalidValues(t *testing.T) {
 	err := ValidateConfigs(
 		datasource.DatabaseConfig{DatabaseURL: "://bad-url"},
-		auth.AuthConfig{JWTPrivateKeyPEM: "", JWTPublicKeyPEM: "", JWTKeyID: "", JWTIssuer: "", JWTAudience: "", AccessTokenTTL: 0, RefreshTokenTTL: 0},
+		auth.AuthConfig{SessionCookieName: "", SessionTTL: 0},
 		rediscache.Config{URL: "redis://localhost:6379/0"},
 		HTTPConfig{Port: ""},
 	)

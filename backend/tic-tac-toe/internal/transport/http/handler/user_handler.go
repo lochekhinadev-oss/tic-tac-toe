@@ -24,11 +24,11 @@ func NewUserHandler(users UserQueryService) *UserHandler {
 // @Description Returns public user information. Request body is not used.
 // @Tags users
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Param uuid path string true "User UUID" Format(uuid) default(123e4567-e89b-42d3-a456-426614174000)
 // @Success 200 {object} dto.UserResponse "User"
 // @Failure 400 {object} dto.ErrorResponse "Invalid UUID"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 404 {object} dto.ErrorResponse "User not found"
 // @Failure 500 {object} dto.ErrorResponse "User was not loaded"
 // @Router /users/{uuid} [get]
@@ -55,14 +55,14 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request, uuid strin
 	webresponse.WriteJSON(w, http.StatusOK, dto.UserResponse{UUID: uuidFromString(user.UUID), Login: user.Login})
 }
 
-// GetCurrentUser returns user information by access token.
+// GetCurrentUser returns user information by session cookie.
 // @Summary Get current user
-// @Description Returns public user information for the authenticated Bearer token.
+// @Description Returns public user information for the authenticated session cookie.
 // @Tags users
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Success 200 {object} dto.UserResponse "User"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 404 {object} dto.ErrorResponse "User not found"
 // @Failure 500 {object} dto.ErrorResponse "User was not loaded"
 // @Router /users/me [get]
@@ -75,9 +75,9 @@ func (h *UserHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 // @Description Soft-deletes the authenticated user account by marking it deleted and making the login unavailable for future auth.
 // @Tags users
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Success 204 "User deleted"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 404 {object} dto.ErrorResponse "User not found"
 // @Failure 500 {object} dto.ErrorResponse "User was not deleted"
 // @Router /users/me [delete]
@@ -99,6 +99,7 @@ func (h *UserHandler) DeleteCurrentUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	clearSessionCookie(w, r)
 	logHandler("%s %s deleted user uuid=%s", r.Method, r.URL.Path, uuid)
 	w.WriteHeader(http.StatusNoContent)
 }

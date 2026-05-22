@@ -1,4 +1,6 @@
 secrets/
+certs/
 .env
 *.pem
 *.key
+*.crt

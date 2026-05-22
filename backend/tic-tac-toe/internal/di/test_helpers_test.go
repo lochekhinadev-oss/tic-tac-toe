@@ -27,46 +27,54 @@ func (d *databaseStub) Ping(context.Context) error {
 
 type authStub struct{}
 
+func (authStub) Can(context.Context, string, domain.Permission) (bool, error) {
+	return true, nil
+}
+
+func (authStub) AuthorizeRequest(context.Context, string, string, string) (bool, error) {
+	return true, nil
+}
+
 func (authStub) SignUp(context.Context, authservice.SignUpRequest) (bool, error) {
 	return true, nil
 }
 
-func (authStub) Authenticate(context.Context, authservice.JwtRequest) (authservice.JwtResponse, error) {
-	return authservice.JwtResponse{Type: "Bearer", AccessToken: "access", RefreshToken: "refresh"}, nil
+func (authStub) SignIn(context.Context, authservice.SessionRequest) (authservice.SessionResponse, error) {
+	return authservice.SessionResponse{UserUUID: "user-1", SessionID: "session-1"}, nil
 }
 
-func (authStub) RefreshAccessToken(context.Context, string) (authservice.JwtResponse, error) {
-	return authservice.JwtResponse{Type: "Bearer", AccessToken: "access-2", RefreshToken: "refresh"}, nil
-}
-
-func (authStub) RefreshRefreshToken(context.Context, string) (authservice.JwtResponse, error) {
-	return authservice.JwtResponse{Type: "Bearer", AccessToken: "access-2", RefreshToken: "refresh-2"}, nil
+func (authStub) RefreshSession(context.Context, string) (authservice.SessionResponse, error) {
+	return authservice.SessionResponse{UserUUID: "user-1", SessionID: "session-2"}, nil
 }
 
 func (authStub) Logout(context.Context, string) error { return nil }
 
 func (authStub) LogoutAll(context.Context, string) error { return nil }
 
-func (authStub) AuthenticateToken(context.Context, string) (string, error) {
+func (authStub) AuthenticateSession(context.Context, string) (string, error) {
 	return "user-1", nil
 }
 
 type deniedAuthStub struct{}
 
+func (deniedAuthStub) Can(context.Context, string, domain.Permission) (bool, error) {
+	return false, nil
+}
+
+func (deniedAuthStub) AuthorizeRequest(context.Context, string, string, string) (bool, error) {
+	return false, nil
+}
+
 func (deniedAuthStub) SignUp(context.Context, authservice.SignUpRequest) (bool, error) {
 	return true, nil
 }
 
-func (deniedAuthStub) Authenticate(context.Context, authservice.JwtRequest) (authservice.JwtResponse, error) {
-	return authservice.JwtResponse{}, nil
+func (deniedAuthStub) SignIn(context.Context, authservice.SessionRequest) (authservice.SessionResponse, error) {
+	return authservice.SessionResponse{}, nil
 }
 
-func (deniedAuthStub) RefreshAccessToken(context.Context, string) (authservice.JwtResponse, error) {
-	return authservice.JwtResponse{}, nil
-}
-
-func (deniedAuthStub) RefreshRefreshToken(context.Context, string) (authservice.JwtResponse, error) {
-	return authservice.JwtResponse{}, nil
+func (deniedAuthStub) RefreshSession(context.Context, string) (authservice.SessionResponse, error) {
+	return authservice.SessionResponse{}, nil
 }
 
 func (deniedAuthStub) Logout(context.Context, string) error {
@@ -77,7 +85,7 @@ func (deniedAuthStub) LogoutAll(context.Context, string) error {
 	return authservice.ErrInvalidToken
 }
 
-func (deniedAuthStub) AuthenticateToken(context.Context, string) (string, error) {
+func (deniedAuthStub) AuthenticateSession(context.Context, string) (string, error) {
 	return "", authservice.ErrInvalidToken
 }
 

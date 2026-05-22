@@ -4,7 +4,6 @@ go 1.22.0
 
 require (
 	github.com/go-chi/chi/v5 v5.2.5
-	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.5.5
 	github.com/pressly/goose/v3 v3.20.0

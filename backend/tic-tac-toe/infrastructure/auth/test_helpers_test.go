@@ -2,16 +2,7 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
-	"testing"
 	"time"
-
-	"github.com/golang-jwt/jwt/v4"
 
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/postgres/repository"
@@ -125,56 +116,33 @@ func (s *userServiceStub) VerifyPassword(user domain.User, password string) (boo
 	return false, false
 }
 
-func mustSignJWT(t *testing.T, provider *JwtProvider, claims jwtClaims) string {
-	t.Helper()
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = provider.keyID
-	signed, err := token.SignedString(provider.privateKey)
-	if err != nil {
-		t.Fatalf("sign token: %v", err)
-	}
-	return signed
+type authorizationServiceStub struct {
+	grantDefaultRoleErr  error
+	grantDefaultRoleUUID string
 }
 
-func newTestAuthConfig(privateKeyPEM string, publicKeyPEM string, keyID string, previousPublicKeys string) AuthConfig {
-	return AuthConfig{
-		JWTPrivateKeyPEM:      privateKeyPEM,
-		JWTPublicKeyPEM:       publicKeyPEM,
-		JWTPreviousPublicKeys: previousPublicKeys,
-		JWTKeyID:              keyID,
-		JWTIssuer:             "issuer",
-		JWTAudience:           "audience",
-		AccessTokenTTL:        time.Hour,
-		RefreshTokenTTL:       time.Hour,
-	}
+func (s *authorizationServiceStub) GrantDefaultRole(_ context.Context, userUUID string) error {
+	s.grantDefaultRoleUUID = userUUID
+	return s.grantDefaultRoleErr
+}
+
+func (s *authorizationServiceStub) GrantRoleToUser(context.Context, string, string) error { return nil }
+
+func (s *authorizationServiceStub) RevokeRoleFromUser(context.Context, string, string) error {
+	return nil
+}
+
+func (s *authorizationServiceStub) LoadPrincipal(context.Context, string) (domain.Principal, error) {
+	return domain.Principal{}, nil
+}
+
+func (s *authorizationServiceStub) Can(context.Context, string, domain.Permission) (bool, error) {
+	return true, nil
 }
 
 func testAuthConfig() AuthConfig {
-	privateKeyPEM, publicKeyPEM := newDevelopmentKeyPair()
-	return newTestAuthConfig(privateKeyPEM, publicKeyPEM, "test-key", "")
-}
-
-func newTestCertificate(t *testing.T) (string, string) {
-	t.Helper()
-
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate key: %v", err)
+	return AuthConfig{
+		SessionCookieName: defaultSessionCookie,
+		SessionTTL:        time.Hour,
 	}
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: "tic-tac-toe.test"},
-		NotBefore:    time.Now().Add(-time.Minute),
-		NotAfter:     time.Now().Add(time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	if err != nil {
-		t.Fatalf("create certificate: %v", err)
-	}
-
-	privatePEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	return string(privatePEM), string(certPEM)
 }

@@ -18,7 +18,7 @@ func TestUserRepositorySaveGetAndUpdate(t *testing.T) {
 	if err := repo.SaveUser(context.Background(), user); err != nil {
 		t.Fatalf("unexpected save error: %v", err)
 	}
-	assertSavedArgs(t, db.savedArgs, user.UUID, user.Login, user.Password)
+	assertSavedArgs(t, db.savedArgs, user.UUID, user.Login, user.Password, domain.DefaultPlayerRole)
 
 	db.savedArgs = []any{user.UUID, user.Login, user.Password}
 	user, err := repo.GetUserByLogin(context.Background(), "player")

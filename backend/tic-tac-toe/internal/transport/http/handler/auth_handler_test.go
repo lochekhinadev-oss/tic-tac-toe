@@ -13,30 +13,26 @@ import (
 )
 
 type authHandlerServiceStub struct {
-	signUpOK        bool
-	signUpErr       error
-	authResponse    authservice.JwtResponse
-	authErr         error
-	refreshResponse authservice.JwtResponse
-	refreshErr      error
-	logoutErr       error
-	logoutAllErr    error
+	signUpOK     bool
+	signUpErr    error
+	signInOK     authservice.SessionResponse
+	signInErr    error
+	refreshOK    authservice.SessionResponse
+	refreshErr   error
+	logoutErr    error
+	logoutAllErr error
 }
 
 func (s authHandlerServiceStub) SignUp(context.Context, authservice.SignUpRequest) (bool, error) {
 	return s.signUpOK, s.signUpErr
 }
 
-func (s authHandlerServiceStub) Authenticate(context.Context, authservice.JwtRequest) (authservice.JwtResponse, error) {
-	return s.authResponse, s.authErr
+func (s authHandlerServiceStub) SignIn(context.Context, authservice.SessionRequest) (authservice.SessionResponse, error) {
+	return s.signInOK, s.signInErr
 }
 
-func (s authHandlerServiceStub) RefreshAccessToken(context.Context, string) (authservice.JwtResponse, error) {
-	return s.refreshResponse, s.refreshErr
-}
-
-func (s authHandlerServiceStub) RefreshRefreshToken(context.Context, string) (authservice.JwtResponse, error) {
-	return s.refreshResponse, s.refreshErr
+func (s authHandlerServiceStub) RefreshSession(context.Context, string) (authservice.SessionResponse, error) {
+	return s.refreshOK, s.refreshErr
 }
 
 func (s authHandlerServiceStub) Logout(context.Context, string) error {
@@ -47,7 +43,7 @@ func (s authHandlerServiceStub) LogoutAll(context.Context, string) error {
 	return s.logoutAllErr
 }
 
-func (s authHandlerServiceStub) AuthenticateToken(context.Context, string) (string, error) {
+func (s authHandlerServiceStub) AuthenticateSession(context.Context, string) (string, error) {
 	return testUUID, nil
 }
 
@@ -65,6 +61,7 @@ func TestAuthHandlerSignUp(t *testing.T) {
 		{name: "duplicate", auth: authHandlerServiceStub{}, body: `{"login":"player","password":"secret"}`, status: http.StatusConflict},
 		{name: "internal", auth: authHandlerServiceStub{signUpErr: errors.New("db failed")}, body: `{"login":"player","password":"secret"}`, status: http.StatusInternalServerError, message: "failed to register user"},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := NewAuthHandler(tt.auth)
@@ -84,67 +81,59 @@ func TestAuthHandlerAuthenticate(t *testing.T) {
 		status  int
 		message string
 	}{
-		{name: "ok", auth: authHandlerServiceStub{authResponse: authservice.JwtResponse{Type: "Bearer", AccessToken: "access", RefreshToken: "refresh"}}, body: `{"login":"player","password":"secret"}`, status: http.StatusOK},
+		{name: "ok", auth: authHandlerServiceStub{signInOK: authservice.SessionResponse{UserUUID: testUUID, SessionID: "session-1"}}, body: `{"login":"player","password":"secret"}`, status: http.StatusOK},
 		{name: "invalid body", body: `{`, status: http.StatusBadRequest, message: "invalid request body"},
-		{name: "unauthorized", auth: authHandlerServiceStub{authErr: authservice.ErrInvalidCredentials}, status: http.StatusUnauthorized, message: "unauthorized"},
-		{name: "internal", auth: authHandlerServiceStub{authErr: errors.New("db failed")}, status: http.StatusInternalServerError, message: "failed to authenticate user"},
+		{name: "unauthorized", auth: authHandlerServiceStub{signInErr: authservice.ErrInvalidCredentials}, status: http.StatusUnauthorized, message: "unauthorized"},
+		{name: "internal", auth: authHandlerServiceStub{signInErr: errors.New("db failed")}, status: http.StatusInternalServerError, message: "failed to authenticate user"},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := NewAuthHandler(tt.auth)
 			if tt.body == "" {
 				tt.body = `{"login":"player","password":"secret"}`
 			}
-			rec, req := newAuthRequest(http.MethodPost, "/auth", tt.body)
+			rec, req := newAuthRequest(http.MethodPost, "/auth/sessions", tt.body)
 			handler.Authenticate(rec, req)
 			assertResponseStatus(t, rec, tt.status)
 			if tt.message != "" {
-				assertStatusAndMessage(t, rec, tt.status, tt.message)
+				assertAuthStatusAndMessage(t, rec, tt.status, tt.message)
 				return
 			}
-			if tt.status == http.StatusOK {
-				assertJwtResponse(t, rec, "Bearer", "access", "refresh")
-			}
+			assertAuthResponse(t, rec, testUUID)
+			assertSessionCookie(t, rec)
 		})
 	}
 }
 
-func TestAuthHandlerRefreshAccessToken(t *testing.T) {
+func TestAuthHandlerRefreshSession(t *testing.T) {
 	handler := NewAuthHandler(authHandlerServiceStub{
-		refreshResponse: authservice.JwtResponse{Type: "Bearer", AccessToken: "access-2", RefreshToken: "refresh"},
+		refreshOK: authservice.SessionResponse{UserUUID: testUUID, SessionID: "session-2"},
 	})
-	rec, req := newAuthRequest(http.MethodPost, "/auth/refresh/access", `{"refreshToken":"refresh"}`)
+	rec, req := newAuthRequest(http.MethodPost, "/auth/refresh/access", "")
+	req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 
 	handler.RefreshAccessToken(rec, req)
 
 	assertResponseStatus(t, rec, http.StatusOK)
-	assertJwtResponse(t, rec, "Bearer", "access-2", "refresh")
+	assertAuthResponse(t, rec, testUUID)
+	assertSessionCookie(t, rec)
 }
 
-func TestAuthHandlerRefreshRefreshToken(t *testing.T) {
-	handler := NewAuthHandler(authHandlerServiceStub{
-		refreshResponse: authservice.JwtResponse{Type: "Bearer", AccessToken: "access-3", RefreshToken: "refresh-2"},
-	})
-	rec, req := newAuthRequest(http.MethodPost, "/auth/refresh", `{"refreshToken":"refresh"}`)
-
-	handler.RefreshRefreshToken(rec, req)
-
-	assertResponseStatus(t, rec, http.StatusOK)
-	assertJwtResponse(t, rec, "Bearer", "access-3", "refresh-2")
-}
-
-func TestAuthHandlerRefreshRefreshTokenUnauthorized(t *testing.T) {
+func TestAuthHandlerRefreshSessionUnauthorized(t *testing.T) {
 	handler := NewAuthHandler(authHandlerServiceStub{refreshErr: authservice.ErrInvalidToken})
-	rec, req := newAuthRequest(http.MethodPost, "/auth/refresh", `{"refreshToken":"refresh"}`)
+	rec, req := newAuthRequest(http.MethodPost, "/auth/refresh", "")
+	req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 
 	handler.RefreshRefreshToken(rec, req)
 
-	assertStatusAndMessage(t, rec, http.StatusUnauthorized, "unauthorized")
+	assertAuthStatusAndMessage(t, rec, http.StatusUnauthorized, "unauthorized")
 }
 
 func TestAuthHandlerLogout(t *testing.T) {
 	handler := NewAuthHandler(authHandlerServiceStub{})
-	rec, req := newAuthRequest(http.MethodPost, "/auth/logout", `{"refreshToken":"refresh"}`)
+	rec, req := newAuthRequest(http.MethodDelete, "/auth/sessions/current", "")
+	req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 
 	handler.Logout(rec, req)
 
@@ -154,7 +143,8 @@ func TestAuthHandlerLogout(t *testing.T) {
 
 func TestAuthHandlerLogoutAll(t *testing.T) {
 	handler := NewAuthHandler(authHandlerServiceStub{})
-	rec, req := newAuthRequest(http.MethodPost, "/auth/logout/all", `{"refreshToken":"refresh"}`)
+	rec, req := newAuthRequest(http.MethodDelete, "/auth/sessions", "")
+	req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 
 	handler.LogoutAll(rec, req)
 
@@ -170,7 +160,7 @@ func TestAuthHandlerRejectsUnsupportedContentType(t *testing.T) {
 
 	handler.SignUp(rec, req)
 
-	assertStatusAndMessage(t, rec, http.StatusUnsupportedMediaType, "content type must be application/json")
+	assertAuthStatusAndMessage(t, rec, http.StatusUnsupportedMediaType, "content type must be application/json")
 }
 
 func newAuthRequest(method string, path string, body string) (*httptest.ResponseRecorder, *http.Request) {
@@ -191,7 +181,7 @@ func assertResponseStatus(t *testing.T, rec *httptest.ResponseRecorder, status i
 func assertResponseMessageIfSet(t *testing.T, rec *httptest.ResponseRecorder, status int, message string) {
 	t.Helper()
 	if message != "" {
-		assertStatusAndMessage(t, rec, status, message)
+		assertAuthStatusAndMessage(t, rec, status, message)
 	}
 }
 
@@ -202,18 +192,38 @@ func assertEmptyBody(t *testing.T, rec *httptest.ResponseRecorder) {
 	}
 }
 
-func assertJwtResponse(t *testing.T, rec *httptest.ResponseRecorder, wantType, wantAccess, wantRefresh string) {
+func assertAuthStatusAndMessage(t *testing.T, rec *httptest.ResponseRecorder, status int, message string) {
 	t.Helper()
-
+	if rec.Code != status {
+		t.Fatalf("expected status %d, got %d", status, rec.Code)
+	}
 	var payload struct {
-		Type         string `json:"type"`
-		AccessToken  string `json:"accessToken"`
-		RefreshToken string `json:"refreshToken"`
+		Message string `json:"message"`
 	}
 	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if payload.Type != wantType || payload.AccessToken != wantAccess || payload.RefreshToken != wantRefresh {
-		t.Fatalf("unexpected jwt payload: %#v", payload)
+	if payload.Message != message {
+		t.Fatalf("expected message %q, got %q", message, payload.Message)
+	}
+}
+
+func assertAuthResponse(t *testing.T, rec *httptest.ResponseRecorder, wantUUID string) {
+	t.Helper()
+	var payload struct {
+		UUID string `json:"uuid"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode auth response: %v", err)
+	}
+	if payload.UUID != wantUUID {
+		t.Fatalf("unexpected auth response: %+v", payload)
+	}
+}
+
+func assertSessionCookie(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if len(rec.Result().Cookies()) == 0 {
+		t.Fatal("expected session cookie")
 	}
 }

@@ -2,15 +2,9 @@ package di
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -18,6 +12,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
+	authservice "tic-tac-toe/infrastructure/auth"
 	"tic-tac-toe/internal/transport/http/handler"
 	"tic-tac-toe/internal/transport/http/middleware"
 )
@@ -42,39 +37,6 @@ func configureTestEnv(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tic_tac_toe?sslmode=disable")
 	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 	t.Setenv("HTTP_PORT", "8080")
-	t.Setenv("APP_ENV", "development")
-	t.Setenv("JWT_KEY_ID", "tic-tac-toe-main")
-	t.Setenv("JWT_ISSUER", "tic-tac-toe")
-	t.Setenv("JWT_AUDIENCE", "tic-tac-toe-api")
-	t.Setenv("JWT_ACCESS_TTL", "15m")
-	t.Setenv("JWT_REFRESH_TTL", "168h")
-
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate rsa key: %v", err)
-	}
-	privatePEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	publicBytes, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
-	if err != nil {
-		t.Fatalf("marshal public key: %v", err)
-	}
-	publicPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: publicBytes})
-
-	t.Setenv("JWT_PRIVATE_KEY_PEM", string(privatePEM))
-	t.Setenv("JWT_PUBLIC_KEY_PEM", string(publicPEM))
-
-	dir := t.TempDir()
-	privatePath := filepath.Join(dir, "private.pem")
-	publicPath := filepath.Join(dir, "public.pem")
-	if err := os.WriteFile(privatePath, privatePEM, 0o600); err != nil {
-		t.Fatalf("write private key: %v", err)
-	}
-	if err := os.WriteFile(publicPath, publicPEM, 0o644); err != nil {
-		t.Fatalf("write public key: %v", err)
-	}
-
-	t.Setenv("JWT_PRIVATE_KEY_PATH", privatePath)
-	t.Setenv("JWT_PUBLIC_KEY_PATH", publicPath)
 }
 
 func TestNewRouter(t *testing.T) {
@@ -82,12 +44,13 @@ func TestNewRouter(t *testing.T) {
 	authHandler := handler.NewAuthHandler(authStub{})
 	userHandler := handler.NewUserHandler(userServiceStub{})
 	db := &databaseStub{}
-	router := NewRouter(gameHandler, authHandler, userHandler, middleware.NewUserAuthenticator(authStub{}), db)
+	router := NewRouter(gameHandler, authHandler, userHandler, middleware.NewUserAuthenticator(authStub{}, authStub{}), db)
 
 	tests := []struct {
 		method string
 		path   string
 		body   string
+		cookie bool
 		status int
 	}{
 		{method: http.MethodGet, path: "/healthz", status: http.StatusOK},
@@ -98,33 +61,26 @@ func TestNewRouter(t *testing.T) {
 		{method: http.MethodGet, path: "/swagger/doc.json", status: http.StatusOK},
 		{method: http.MethodPost, path: "/users", body: `{"login":"player","password":"secret"}`, status: http.StatusCreated},
 		{method: http.MethodPost, path: "/auth/sessions", body: `{"login":"player","password":"secret"}`, status: http.StatusOK},
-		{method: http.MethodPost, path: "/auth/tokens/access", body: `{"refreshToken":"refresh"}`, status: http.StatusOK},
-		{method: http.MethodPost, path: "/auth/tokens/refresh", body: `{"refreshToken":"refresh"}`, status: http.StatusOK},
-		{method: http.MethodDelete, path: "/auth/sessions/current", body: `{"refreshToken":"refresh"}`, status: http.StatusNoContent},
-		{method: http.MethodDelete, path: "/auth/sessions", body: `{"refreshToken":"refresh"}`, status: http.StatusNoContent},
 		{method: http.MethodPost, path: "/signup", body: `{"login":"player","password":"secret"}`, status: http.StatusCreated},
-		{method: http.MethodPost, path: "/auth", body: `{"login":"player","password":"secret"}`, status: http.StatusOK},
-		{method: http.MethodPost, path: "/auth/refresh/access", body: `{"refreshToken":"refresh"}`, status: http.StatusOK},
-		{method: http.MethodPost, path: "/auth/refresh", body: `{"refreshToken":"refresh"}`, status: http.StatusOK},
-		{method: http.MethodPost, path: "/auth/logout", body: `{"refreshToken":"refresh"}`, status: http.StatusNoContent},
-		{method: http.MethodPost, path: "/auth/logout/all", body: `{"refreshToken":"refresh"}`, status: http.StatusNoContent},
-		{method: http.MethodGet, path: "/auth", status: http.StatusMethodNotAllowed},
 		{method: http.MethodGet, path: "/missing", status: http.StatusNotFound},
-		{method: http.MethodPost, path: "/games", status: http.StatusCreated},
-		{method: http.MethodGet, path: "/games", status: http.StatusOK},
-		{method: http.MethodGet, path: "/games/history", status: http.StatusOK},
-		{method: http.MethodGet, path: "/games/leaderboard?n=10", status: http.StatusOK},
-		{method: http.MethodGet, path: "/games/123e4567-e89b-42d3-a456-426614174000", status: http.StatusOK},
-		{method: http.MethodPost, path: "/games/123e4567-e89b-42d3-a456-426614174000/join", status: http.StatusOK},
-		{method: http.MethodPost, path: "/games/123e4567-e89b-42d3-a456-426614174000/move", body: `{"field":[[1,0,0],[0,0,0],[0,0,0]]}`, status: http.StatusOK},
-		{method: http.MethodGet, path: "/users/123e4567-e89b-42d3-a456-426614174000", status: http.StatusOK},
-		{method: http.MethodDelete, path: "/users/me", status: http.StatusNoContent},
+		{method: http.MethodPost, path: "/games", cookie: true, status: http.StatusCreated},
+		{method: http.MethodGet, path: "/games", cookie: true, status: http.StatusOK},
+		{method: http.MethodGet, path: "/games/history", cookie: true, status: http.StatusOK},
+		{method: http.MethodGet, path: "/games/leaderboard?n=10", cookie: true, status: http.StatusOK},
+		{method: http.MethodGet, path: "/games/123e4567-e89b-42d3-a456-426614174000", cookie: true, status: http.StatusOK},
+		{method: http.MethodPost, path: "/games/123e4567-e89b-42d3-a456-426614174000/join", cookie: true, status: http.StatusOK},
+		{method: http.MethodPost, path: "/games/123e4567-e89b-42d3-a456-426614174000/move", cookie: true, body: `{"field":[[1,0,0],[0,0,0],[0,0,0]]}`, status: http.StatusOK},
+		{method: http.MethodGet, path: "/users/123e4567-e89b-42d3-a456-426614174000", cookie: true, status: http.StatusOK},
+		{method: http.MethodDelete, path: "/users/me", cookie: true, status: http.StatusNoContent},
 	}
 	for _, tt := range tests {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
 		if tt.body != "" {
 			req.Header.Set("Content-Type", "application/json")
+		}
+		if tt.cookie {
+			req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 		}
 		router.ServeHTTP(rec, req)
 		if rec.Code != tt.status {

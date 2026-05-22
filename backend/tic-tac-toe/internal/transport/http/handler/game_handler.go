@@ -41,11 +41,11 @@ func newGameHandler(commands GameCommandService, storage GameStorage) *GameHandl
 // @Tags games
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Param request body dto.CreateGameRequest false "Request body. Can be omitted."
 // @Success 201 {object} dto.GameResponse "Created game"
 // @Failure 400 {object} dto.ErrorResponse "Invalid request body or mode"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 415 {object} dto.ErrorResponse "Request body must be application/json"
 // @Failure 500 {object} dto.ErrorResponse "Game was not saved"
 // @Router /games [post]
@@ -104,11 +104,11 @@ func (h *GameHandler) CreateGame(w http.ResponseWriter, r *http.Request) {
 // @Description Joins an existing player-vs-player game that is waiting for a second player. Request body is not used.
 // @Tags games
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Param uuid path string true "Game UUID" Format(uuid) default(123e4567-e89b-42d3-a456-426614174000)
 // @Success 200 {object} dto.GameResponse "Joined game"
 // @Failure 400 {object} dto.ErrorResponse "Game cannot be joined"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 404 {object} dto.ErrorResponse "Game not found"
 // @Failure 500 {object} dto.ErrorResponse "Join was not saved"
 // @Router /games/{uuid}/join [post]
@@ -165,12 +165,12 @@ func (h *GameHandler) JoinGame(w http.ResponseWriter, r *http.Request, uuid stri
 // @Tags games
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Param uuid path string true "Game UUID" Format(uuid) default(123e4567-e89b-42d3-a456-426614174000)
 // @Param request body dto.GameRequest true "Request body"
 // @Success 200 {object} dto.GameResponse "Updated game"
 // @Failure 400 {object} dto.ErrorResponse "Invalid body, invalid move, or UUID mismatch"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 404 {object} dto.ErrorResponse "Game not found"
 // @Failure 415 {object} dto.ErrorResponse "Request body must be application/json"
 // @Failure 500 {object} dto.ErrorResponse "Move was not saved"
@@ -241,9 +241,9 @@ func (h *GameHandler) MakeMove(w http.ResponseWriter, r *http.Request, uuid stri
 // @Description Returns active games visible to authenticated users. Request body is not used.
 // @Tags games
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Success 200 {object} dto.GamesResponse "Active games"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 500 {object} dto.ErrorResponse "Games were not loaded"
 // @Router /games [get]
 func (h *GameHandler) ListGames(w http.ResponseWriter, r *http.Request) {
@@ -263,9 +263,9 @@ func (h *GameHandler) ListGames(w http.ResponseWriter, r *http.Request) {
 // @Description Returns games completed by the authenticated user. Includes wins by the user and draws involving the user.
 // @Tags games
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Success 200 {object} dto.GameHistoryResponse "Completed games"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 500 {object} dto.ErrorResponse "Games were not loaded"
 // @Router /games/history [get]
 func (h *GameHandler) ListCompletedGames(w http.ResponseWriter, r *http.Request) {
@@ -292,11 +292,11 @@ func (h *GameHandler) ListCompletedGames(w http.ResponseWriter, r *http.Request)
 // @Description Returns the best players sorted by win ratio in descending order.
 // @Tags games
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Param n query int false "Number of top players" minimum(1) maximum(100) default(10)
 // @Success 200 {object} dto.LeaderboardResponse "Top players"
 // @Failure 400 {object} dto.ErrorResponse "Invalid limit"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 500 {object} dto.ErrorResponse "Leaderboard was not loaded"
 // @Router /games/leaderboard [get]
 func (h *GameHandler) ListTopPlayers(w http.ResponseWriter, r *http.Request) {
@@ -323,11 +323,11 @@ func (h *GameHandler) ListTopPlayers(w http.ResponseWriter, r *http.Request) {
 // @Description Returns the current saved state of one game. Request body is not used.
 // @Tags games
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookieAuth
 // @Param uuid path string true "Game UUID" Format(uuid) default(123e4567-e89b-42d3-a456-426614174000)
 // @Success 200 {object} dto.GameResponse "Game state"
 // @Failure 400 {object} dto.ErrorResponse "Invalid UUID"
-// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid session cookie"
 // @Failure 404 {object} dto.ErrorResponse "Game not found"
 // @Failure 500 {object} dto.ErrorResponse "Game was not loaded"
 // @Router /games/{uuid} [get]

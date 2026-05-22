@@ -1,5 +1,24 @@
 basePath: /
 definitions:
+  dto.AuthRequest:
+    properties:
+      login:
+        description: User login. Must not be empty.
+        example: player
+        type: string
+      password:
+        description: User password. Must not be empty.
+        example: secret
+        type: string
+    type: object
+  dto.AuthResponse:
+    properties:
+      uuid:
+        description: Authenticated user UUID.
+        example: 123e4567-e89b-42d3-a456-426614174000
+        format: uuid
+        type: string
+    type: object
   dto.CreateGameRequest:
     properties:
       mode:
@@ -103,32 +122,6 @@ definitions:
           $ref: '#/definitions/dto.GameResponse'
         type: array
     type: object
-  dto.JwtRequest:
-    properties:
-      login:
-        description: User login. Must not be empty.
-        example: player
-        type: string
-      password:
-        description: User password. Must not be empty.
-        example: secret
-        type: string
-    type: object
-  dto.JwtResponse:
-    properties:
-      accessToken:
-        description: Short-lived access token.
-        example: eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ...
-        type: string
-      refreshToken:
-        description: Long-lived refresh token.
-        example: eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ...
-        type: string
-      type:
-        description: Token type.
-        example: Bearer
-        type: string
-    type: object
   dto.LeaderboardEntry:
     properties:
       login:
@@ -152,13 +145,6 @@ definitions:
         items:
           $ref: '#/definitions/dto.LeaderboardEntry'
         type: array
-    type: object
-  dto.RefreshJwtRequest:
-    properties:
-      refreshToken:
-        description: Refresh token.
-        example: eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ...
-        type: string
     type: object
   dto.SignUpRequest:
     properties:
@@ -198,30 +184,13 @@ info:
 paths:
   /auth/sessions:
     delete:
-      consumes:
-      - application/json
-      parameters:
-      - description: Request body
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.RefreshJwtRequest'
       produces:
       - application/json
       responses:
         "204":
           description: Logged out from all sessions
-        "400":
-          description: Invalid JSON
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
         "401":
-          description: Invalid refresh token
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "415":
-          description: Request body must be application/json
+          description: Invalid session
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
@@ -234,22 +203,21 @@ paths:
     post:
       consumes:
       - application/json
-      description: Send login and password as JSON and receive Bearer access and refresh
-        tokens.
+      description: Send login and password as JSON and receive a session cookie.
       parameters:
       - description: Request body
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/dto.JwtRequest'
+          $ref: '#/definitions/dto.AuthRequest'
       produces:
       - application/json
       responses:
         "200":
-          description: JWT tokens
+          description: Authenticated user
           schema:
-            $ref: '#/definitions/dto.JwtResponse'
+            $ref: '#/definitions/dto.AuthResponse'
         "400":
           description: Invalid JSON
           schema:
@@ -271,30 +239,13 @@ paths:
       - auth
   /auth/sessions/current:
     delete:
-      consumes:
-      - application/json
-      parameters:
-      - description: Request body
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.RefreshJwtRequest'
       produces:
       - application/json
       responses:
         "204":
           description: Logged out
-        "400":
-          description: Invalid JSON
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
         "401":
-          description: Invalid refresh token
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "415":
-          description: Request body must be application/json
+          description: Invalid session
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
@@ -306,76 +257,42 @@ paths:
       - auth
   /auth/tokens/access:
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Request body
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.RefreshJwtRequest'
       produces:
       - application/json
       responses:
         "200":
-          description: JWT tokens
+          description: Authenticated user
           schema:
-            $ref: '#/definitions/dto.JwtResponse'
-        "400":
-          description: Invalid JSON
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.AuthResponse'
         "401":
-          description: Invalid refresh token
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "415":
-          description: Request body must be application/json
+          description: Invalid session
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
-          description: Refresh failed
+          description: Session renewal failed
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
-      summary: Refresh access token
+      summary: Refresh session
       tags:
       - auth
   /auth/tokens/refresh:
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Request body
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.RefreshJwtRequest'
       produces:
       - application/json
       responses:
         "200":
-          description: JWT tokens
+          description: Authenticated user
           schema:
-            $ref: '#/definitions/dto.JwtResponse'
-        "400":
-          description: Invalid JSON
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.AuthResponse'
         "401":
-          description: Invalid refresh token
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "415":
-          description: Request body must be application/json
+          description: Invalid session
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
-          description: Refresh failed
+          description: Session renewal failed
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
-      summary: Refresh refresh token
+      summary: Refresh session
       tags:
       - auth
   /games:
@@ -390,7 +307,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.GamesResponse'
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
@@ -398,7 +315,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: List available games
       tags:
       - games
@@ -425,7 +342,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "415":
@@ -437,7 +354,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: Create a new game
       tags:
       - games
@@ -465,7 +382,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
@@ -477,7 +394,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: Get game by UUID
       tags:
       - games
@@ -505,7 +422,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
@@ -517,7 +434,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: Join a game
       tags:
       - games
@@ -553,7 +470,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
@@ -569,7 +486,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: Apply a move
       tags:
       - games
@@ -585,7 +502,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.GameHistoryResponse'
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
@@ -593,7 +510,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: List completed games
       tags:
       - games
@@ -620,7 +537,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
@@ -628,7 +545,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: List top players
       tags:
       - games
@@ -694,7 +611,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
@@ -706,7 +623,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: Get user by UUID
       tags:
       - users
@@ -720,7 +637,7 @@ paths:
         "204":
           description: User deleted
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
@@ -732,12 +649,12 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: Delete current user
       tags:
       - users
     get:
-      description: Returns public user information for the authenticated Bearer token.
+      description: Returns public user information for the authenticated session cookie.
       produces:
       - application/json
       responses:
@@ -746,7 +663,7 @@ paths:
           schema:
             $ref: '#/definitions/dto.UserResponse'
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid session cookie
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
@@ -758,15 +675,15 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
-      - BearerAuth: []
+      - SessionCookieAuth: []
       summary: Get current user
       tags:
       - users
 schemes:
 - http
 securityDefinitions:
-  BearerAuth:
-    in: header
-    name: Authorization
+  SessionCookieAuth:
+    in: cookie
+    name: tic-tac-toe.session
     type: apiKey
 swagger: "2.0"

@@ -40,12 +40,11 @@ type GameQueryStorage interface {
 
 type AuthService interface {
 	SignUp(ctx context.Context, request auth.SignUpRequest) (bool, error)
-	Authenticate(ctx context.Context, request auth.JwtRequest) (auth.JwtResponse, error)
-	RefreshAccessToken(ctx context.Context, refreshToken string) (auth.JwtResponse, error)
-	RefreshRefreshToken(ctx context.Context, refreshToken string) (auth.JwtResponse, error)
-	Logout(ctx context.Context, refreshToken string) error
-	LogoutAll(ctx context.Context, refreshToken string) error
-	AuthenticateToken(ctx context.Context, header string) (string, error)
+	SignIn(ctx context.Context, request auth.SessionRequest) (auth.SessionResponse, error)
+	RefreshSession(ctx context.Context, sessionID string) (auth.SessionResponse, error)
+	Logout(ctx context.Context, sessionID string) error
+	LogoutAll(ctx context.Context, sessionID string) error
+	AuthenticateSession(ctx context.Context, sessionID string) (string, error)
 }
 
 type UserQueryService interface {

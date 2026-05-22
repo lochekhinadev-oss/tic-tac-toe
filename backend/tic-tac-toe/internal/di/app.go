@@ -35,6 +35,18 @@ var ApplicationModule = fx.Module(
 			application.NewUserService,
 			fx.As(new(domain.UserService)),
 		),
+		fx.Annotate(
+			application.NewAuthorizationService,
+			fx.As(new(domain.AuthorizationService)),
+		),
+		fx.Annotate(
+			application.NewRoutePermissionPolicy,
+			fx.As(new(application.RequestPermissionResolver)),
+		),
+		fx.Annotate(
+			application.NewRequestAuthorizationService,
+			fx.As(new(application.RequestAuthorizer)),
+		),
 		AsUserQueryService,
 	),
 )
@@ -51,8 +63,8 @@ var InfrastructureModule = fx.Module(
 		AsGameCommandStorage,
 		AsGameQueryService,
 		repository.NewUserRepository,
+		repository.NewAuthorizationRepository,
 		repository.NewAuthSessionRepository,
-		auth.NewJwtProvider,
 		fx.Annotate(
 			auth.NewAuthService,
 			fx.As(new(auth.AuthService)),

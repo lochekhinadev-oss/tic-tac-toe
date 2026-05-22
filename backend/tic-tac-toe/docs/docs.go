@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/auth/sessions": {
             "post": {
-                "description": "Send login and password as JSON and receive Bearer access and refresh tokens.",
+                "description": "Send login and password as JSON and receive a session cookie.",
                 "consumes": [
                     "application/json"
                 ],
@@ -35,15 +35,15 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.JwtRequest"
+                            "$ref": "#/definitions/dto.AuthRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "JWT tokens",
+                        "description": "Authenticated user",
                         "schema": {
-                            "$ref": "#/definitions/dto.JwtResponse"
+                            "$ref": "#/definitions/dto.AuthResponse"
                         }
                     },
                     "400": {
@@ -73,9 +73,6 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -83,35 +80,12 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Logout from all sessions",
-                "parameters": [
-                    {
-                        "description": "Request body",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.RefreshJwtRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "204": {
                         "description": "Logged out from all sessions"
                     },
-                    "400": {
-                        "description": "Invalid JSON",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
                     "401": {
-                        "description": "Invalid refresh token",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "415": {
-                        "description": "Request body must be application/json",
+                        "description": "Invalid session",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -127,9 +101,6 @@ const docTemplate = `{
         },
         "/auth/sessions/current": {
             "delete": {
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -137,35 +108,12 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Logout",
-                "parameters": [
-                    {
-                        "description": "Request body",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.RefreshJwtRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "204": {
                         "description": "Logged out"
                     },
-                    "400": {
-                        "description": "Invalid JSON",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
                     "401": {
-                        "description": "Invalid refresh token",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "415": {
-                        "description": "Request body must be application/json",
+                        "description": "Invalid session",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -181,54 +129,28 @@ const docTemplate = `{
         },
         "/auth/tokens/access": {
             "post": {
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "auth"
                 ],
-                "summary": "Refresh access token",
-                "parameters": [
-                    {
-                        "description": "Request body",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.RefreshJwtRequest"
-                        }
-                    }
-                ],
+                "summary": "Refresh session",
                 "responses": {
                     "200": {
-                        "description": "JWT tokens",
+                        "description": "Authenticated user",
                         "schema": {
-                            "$ref": "#/definitions/dto.JwtResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid JSON",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/dto.AuthResponse"
                         }
                     },
                     "401": {
-                        "description": "Invalid refresh token",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "415": {
-                        "description": "Request body must be application/json",
+                        "description": "Invalid session",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Refresh failed",
+                        "description": "Session renewal failed",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -238,54 +160,28 @@ const docTemplate = `{
         },
         "/auth/tokens/refresh": {
             "post": {
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "auth"
                 ],
-                "summary": "Refresh refresh token",
-                "parameters": [
-                    {
-                        "description": "Request body",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.RefreshJwtRequest"
-                        }
-                    }
-                ],
+                "summary": "Refresh session",
                 "responses": {
                     "200": {
-                        "description": "JWT tokens",
+                        "description": "Authenticated user",
                         "schema": {
-                            "$ref": "#/definitions/dto.JwtResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid JSON",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/dto.AuthResponse"
                         }
                     },
                     "401": {
-                        "description": "Invalid refresh token",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "415": {
-                        "description": "Request body must be application/json",
+                        "description": "Invalid session",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Refresh failed",
+                        "description": "Session renewal failed",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -297,7 +193,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
                 "description": "Returns active games visible to authenticated users. Request body is not used.",
@@ -316,7 +212,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -332,7 +228,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
                 "description": "Creates a computer game by default when the body is empty or mode is omitted. Supported modes are \"computer\" and \"player\".",
@@ -370,7 +266,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -394,7 +290,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
                 "description": "Returns games completed by the authenticated user. Includes wins by the user and draws involving the user.",
@@ -413,7 +309,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -431,7 +327,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
                 "description": "Returns the best players sorted by win ratio in descending order.",
@@ -467,7 +363,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -485,7 +381,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
                 "description": "Returns the current saved state of one game. Request body is not used.",
@@ -521,7 +417,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -545,7 +441,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
                 "description": "Joins an existing player-vs-player game that is waiting for a second player. Request body is not used.",
@@ -581,7 +477,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -605,7 +501,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
                 "description": "The request body UUID is optional. If it is present, it must match the UUID from the path.",
@@ -653,7 +549,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -741,10 +637,10 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
-                "description": "Returns public user information for the authenticated Bearer token.",
+                "description": "Returns public user information for the authenticated session cookie.",
                 "produces": [
                     "application/json"
                 ],
@@ -760,7 +656,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -782,7 +678,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
                 "description": "Soft-deletes the authenticated user account by marking it deleted and making the login unavailable for future auth.",
@@ -798,7 +694,7 @@ const docTemplate = `{
                         "description": "User deleted"
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -822,7 +718,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookieAuth": []
                     }
                 ],
                 "description": "Returns public user information. Request body is not used.",
@@ -858,7 +754,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or invalid Bearer token",
+                        "description": "Missing or invalid session cookie",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -880,6 +776,32 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.AuthRequest": {
+            "type": "object",
+            "properties": {
+                "login": {
+                    "description": "User login. Must not be empty.",
+                    "type": "string",
+                    "example": "player"
+                },
+                "password": {
+                    "description": "User password. Must not be empty.",
+                    "type": "string",
+                    "example": "secret"
+                }
+            }
+        },
+        "dto.AuthResponse": {
+            "type": "object",
+            "properties": {
+                "uuid": {
+                    "description": "Authenticated user UUID.",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-42d3-a456-426614174000"
+                }
+            }
+        },
         "dto.CreateGameRequest": {
             "type": "object",
             "properties": {
@@ -1017,41 +939,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.JwtRequest": {
-            "type": "object",
-            "properties": {
-                "login": {
-                    "description": "User login. Must not be empty.",
-                    "type": "string",
-                    "example": "player"
-                },
-                "password": {
-                    "description": "User password. Must not be empty.",
-                    "type": "string",
-                    "example": "secret"
-                }
-            }
-        },
-        "dto.JwtResponse": {
-            "type": "object",
-            "properties": {
-                "accessToken": {
-                    "description": "Short-lived access token.",
-                    "type": "string",
-                    "example": "eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ..."
-                },
-                "refreshToken": {
-                    "description": "Long-lived refresh token.",
-                    "type": "string",
-                    "example": "eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ..."
-                },
-                "type": {
-                    "description": "Token type.",
-                    "type": "string",
-                    "example": "Bearer"
-                }
-            }
-        },
         "dto.LeaderboardEntry": {
             "type": "object",
             "properties": {
@@ -1082,16 +969,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.LeaderboardEntry"
                     }
-                }
-            }
-        },
-        "dto.RefreshJwtRequest": {
-            "type": "object",
-            "properties": {
-                "refreshToken": {
-                    "description": "Refresh token.",
-                    "type": "string",
-                    "example": "eyJhbGciOiJSUzI1NiIsImtpZCI6InRpYy10YWMtdG9lLW1haW4iLCJ0eXAiOiJKV1QifQ..."
                 }
             }
         },
@@ -1138,10 +1015,10 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
-        "BearerAuth": {
+        "SessionCookieAuth": {
             "type": "apiKey",
-            "name": "Authorization",
-            "in": "header"
+            "name": "tic-tac-toe.session",
+            "in": "cookie"
         }
     }
 }`

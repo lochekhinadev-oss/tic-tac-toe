@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	authservice "tic-tac-toe/infrastructure/auth"
 	"tic-tac-toe/internal/transport/http/handler"
 	"tic-tac-toe/internal/transport/http/middleware"
 )
@@ -15,7 +16,7 @@ func TestRouterSystemEndpoints(t *testing.T) {
 		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}, gameStorageStub{}),
 		handler.NewAuthHandler(authStub{}),
 		handler.NewUserHandler(userServiceStub{}),
-		middleware.NewUserAuthenticator(authStub{}),
+		middleware.NewUserAuthenticator(authStub{}, authStub{}),
 		&databaseStub{},
 	)
 
@@ -66,7 +67,7 @@ func TestRouterProtectedRouteRequiresAuth(t *testing.T) {
 		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}, gameStorageStub{}),
 		handler.NewAuthHandler(authStub{}),
 		handler.NewUserHandler(userServiceStub{}),
-		middleware.NewUserAuthenticator(deniedAuthStub{}),
+		middleware.NewUserAuthenticator(deniedAuthStub{}, deniedAuthStub{}),
 		&databaseStub{},
 	)
 
@@ -86,7 +87,7 @@ func TestRouterRejectsInvalidPathUUID(t *testing.T) {
 		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}, gameStorageStub{}),
 		handler.NewAuthHandler(authStub{}),
 		handler.NewUserHandler(userServiceStub{}),
-		middleware.NewUserAuthenticator(authStub{}),
+		middleware.NewUserAuthenticator(authStub{}, authStub{}),
 		&databaseStub{},
 	)
 
@@ -94,11 +95,12 @@ func TestRouterRejectsInvalidPathUUID(t *testing.T) {
 		method string
 		path   string
 		body   string
+		cookie bool
 	}{
-		{method: http.MethodGet, path: "/users/not-a-uuid"},
-		{method: http.MethodGet, path: "/games/not-a-uuid"},
-		{method: http.MethodPost, path: "/games/not-a-uuid/join"},
-		{method: http.MethodPost, path: "/games/not-a-uuid/move", body: `{"field":[[1,0,0],[0,0,0],[0,0,0]]}`},
+		{method: http.MethodGet, path: "/users/not-a-uuid", cookie: true},
+		{method: http.MethodGet, path: "/games/not-a-uuid", cookie: true},
+		{method: http.MethodPost, path: "/games/not-a-uuid/join", cookie: true},
+		{method: http.MethodPost, path: "/games/not-a-uuid/move", cookie: true, body: `{"field":[[1,0,0],[0,0,0],[0,0,0]]}`},
 	}
 
 	for _, tt := range tests {
@@ -107,6 +109,9 @@ func TestRouterRejectsInvalidPathUUID(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
 			if tt.body != "" {
 				req.Header.Set("Content-Type", "application/json")
+			}
+			if tt.cookie {
+				req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
 			}
 
 			router.ServeHTTP(rec, req)
@@ -124,7 +129,7 @@ func TestReadyzReportsDatabaseFailure(t *testing.T) {
 		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}, gameStorageStub{}),
 		handler.NewAuthHandler(authStub{}),
 		handler.NewUserHandler(userServiceStub{}),
-		middleware.NewUserAuthenticator(authStub{}),
+		middleware.NewUserAuthenticator(authStub{}, authStub{}),
 		&databaseStub{pingErr: http.ErrServerClosed},
 	)
 

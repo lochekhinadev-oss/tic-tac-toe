@@ -2,19 +2,14 @@ package handler
 
 import (
 	googleuuid "github.com/google/uuid"
+	"net/http"
+	"strings"
+	"time"
 
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/auth"
 	"tic-tac-toe/internal/transport/http/dto"
 )
-
-func jwtResponseToDTO(response auth.JwtResponse) dto.JwtResponse {
-	return dto.JwtResponse{
-		Type:         response.Type,
-		AccessToken:  response.AccessToken,
-		RefreshToken: response.RefreshToken,
-	}
-}
 
 func gameResponse(game domain.Game) dto.GameResponse {
 	return dto.GameResponse{
@@ -68,4 +63,51 @@ func newUUID() (string, error) {
 		return "", err
 	}
 	return id.String(), nil
+}
+
+func setSessionCookie(w http.ResponseWriter, r *http.Request, sessionID string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     auth.SessionCookieName,
+		Value:    sessionID,
+		Path:     "/",
+		Domain:   "",
+		Expires:  expiresAt.UTC(),
+		MaxAge:   int(time.Until(expiresAt).Seconds()),
+		Secure:   isRequestSecure(r),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func clearSessionCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     auth.SessionCookieName,
+		Value:    "",
+		Path:     "/",
+		Domain:   "",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		Secure:   isRequestSecure(r),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func isRequestSecure(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+
+	proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
+	if proto == "" {
+		return false
+	}
+
+	for _, part := range strings.Split(proto, ",") {
+		if strings.EqualFold(strings.TrimSpace(part), "https") {
+			return true
+		}
+	}
+
+	return false
 }

@@ -19,14 +19,14 @@ func NewAuthHandler(authService auth.AuthService) *AuthHandler {
 	return &AuthHandler{auth: authService}
 }
 
-// Authenticate validates user credentials and returns JWT tokens.
+// Authenticate validates user credentials and establishes an HttpOnly session cookie.
 // @Summary Authenticate by login and password
-// @Description Send login and password as JSON and receive Bearer access and refresh tokens.
+// @Description Send login and password as JSON and receive a session cookie.
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body dto.JwtRequest true "Request body"
-// @Success 200 {object} dto.JwtResponse "JWT tokens"
+// @Param request body dto.AuthRequest true "Request body"
+// @Success 200 {object} dto.AuthResponse "Authenticated user"
 // @Failure 400 {object} dto.ErrorResponse "Invalid JSON"
 // @Failure 401 {object} dto.ErrorResponse "Invalid or missing credentials"
 // @Failure 415 {object} dto.ErrorResponse "Request body must be application/json"
@@ -40,7 +40,7 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.auth.Authenticate(r.Context(), auth.JwtRequest{
+	session, err := h.auth.SignIn(r.Context(), auth.SessionRequest{
 		Login:    request.Login,
 		Password: request.Password,
 	})
@@ -49,7 +49,8 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logHandler("%s %s auth completed", r.Method, r.URL.Path)
-	webresponse.WriteJSON(w, http.StatusOK, jwtResponseToDTO(response))
+	setSessionCookie(w, r, session.SessionID, session.ExpiresAt)
+	webresponse.WriteJSON(w, http.StatusOK, dto.AuthResponse{UUID: uuidFromString(session.UserUUID)})
 }
 
 // SignUp registers a new user.
@@ -102,136 +103,119 @@ func (h *AuthHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 	webresponse.WriteJSON(w, http.StatusCreated, dto.SignUpResponse{Success: true})
 }
 
-// RefreshAccessToken refreshes an access token using a refresh token.
-// @Summary Refresh access token
+// RefreshAccessToken renews the current session cookie.
+// @Summary Refresh session
 // @Tags auth
-// @Accept json
 // @Produce json
-// @Param request body dto.RefreshJwtRequest true "Request body"
-// @Success 200 {object} dto.JwtResponse "JWT tokens"
-// @Failure 400 {object} dto.ErrorResponse "Invalid JSON"
-// @Failure 401 {object} dto.ErrorResponse "Invalid refresh token"
-// @Failure 415 {object} dto.ErrorResponse "Request body must be application/json"
-// @Failure 500 {object} dto.ErrorResponse "Refresh failed"
+// @Success 200 {object} dto.AuthResponse "Authenticated user"
+// @Failure 401 {object} dto.ErrorResponse "Invalid session"
+// @Failure 500 {object} dto.ErrorResponse "Session renewal failed"
 // @Router /auth/tokens/access [post]
 func (h *AuthHandler) RefreshAccessToken(w http.ResponseWriter, r *http.Request) {
-	h.refreshToken(w, r, h.auth.RefreshAccessToken, messages.FailedRefreshAccess)
+	h.refreshSession(w, r, h.auth.RefreshSession, messages.FailedRefreshAccess)
 }
 
-// RefreshRefreshToken refreshes a refresh token using a valid refresh token.
-// @Summary Refresh refresh token
+// RefreshRefreshToken refreshes the current session cookie.
+// @Summary Refresh session
 // @Tags auth
-// @Accept json
 // @Produce json
-// @Param request body dto.RefreshJwtRequest true "Request body"
-// @Success 200 {object} dto.JwtResponse "JWT tokens"
-// @Failure 400 {object} dto.ErrorResponse "Invalid JSON"
-// @Failure 401 {object} dto.ErrorResponse "Invalid refresh token"
-// @Failure 415 {object} dto.ErrorResponse "Request body must be application/json"
-// @Failure 500 {object} dto.ErrorResponse "Refresh failed"
+// @Success 200 {object} dto.AuthResponse "Authenticated user"
+// @Failure 401 {object} dto.ErrorResponse "Invalid session"
+// @Failure 500 {object} dto.ErrorResponse "Session renewal failed"
 // @Router /auth/tokens/refresh [post]
 func (h *AuthHandler) RefreshRefreshToken(w http.ResponseWriter, r *http.Request) {
-	h.refreshToken(w, r, h.auth.RefreshRefreshToken, messages.FailedRefreshRefresh)
+	h.refreshSession(w, r, h.auth.RefreshSession, messages.FailedRefreshRefresh)
 }
 
-// Logout revokes the active refresh session.
+// Logout revokes the active session.
 // @Summary Logout
 // @Tags auth
-// @Accept json
 // @Produce json
-// @Param request body dto.RefreshJwtRequest true "Request body"
 // @Success 204 "Logged out"
-// @Failure 400 {object} dto.ErrorResponse "Invalid JSON"
-// @Failure 401 {object} dto.ErrorResponse "Invalid refresh token"
-// @Failure 415 {object} dto.ErrorResponse "Request body must be application/json"
+// @Failure 401 {object} dto.ErrorResponse "Invalid session"
 // @Failure 500 {object} dto.ErrorResponse "Logout failed"
 // @Router /auth/sessions/current [delete]
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	logHandler("%s %s logout request", r.Method, r.URL.Path)
 
-	request, ok := decodeRefreshTokenRequest(w, r, "logout")
+	sessionID, ok := decodeSessionID(w, r, "logout")
 	if !ok {
 		return
 	}
 
-	if handleRefreshActionError(w, r, "logout", h.auth.Logout(r.Context(), request.RefreshToken), messages.FailedLogoutUser) {
+	if handleSessionActionError(w, r, "logout", h.auth.Logout(r.Context(), sessionID), messages.FailedLogoutUser) {
 		return
 	}
 
+	clearSessionCookie(w, r)
 	logHandler("%s %s logout completed", r.Method, r.URL.Path)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// LogoutAll revokes all refresh sessions for the authenticated user.
+// LogoutAll revokes all sessions for the authenticated user.
 // @Summary Logout from all sessions
 // @Tags auth
-// @Accept json
 // @Produce json
-// @Param request body dto.RefreshJwtRequest true "Request body"
 // @Success 204 "Logged out from all sessions"
-// @Failure 400 {object} dto.ErrorResponse "Invalid JSON"
-// @Failure 401 {object} dto.ErrorResponse "Invalid refresh token"
-// @Failure 415 {object} dto.ErrorResponse "Request body must be application/json"
+// @Failure 401 {object} dto.ErrorResponse "Invalid session"
 // @Failure 500 {object} dto.ErrorResponse "Logout failed"
 // @Router /auth/sessions [delete]
 func (h *AuthHandler) LogoutAll(w http.ResponseWriter, r *http.Request) {
 	logHandler("%s %s logout all request", r.Method, r.URL.Path)
 
-	request, ok := decodeRefreshTokenRequest(w, r, "logout all")
+	sessionID, ok := decodeSessionID(w, r, "logout all")
 	if !ok {
 		return
 	}
 
-	if handleRefreshActionError(w, r, "logout all", h.auth.LogoutAll(r.Context(), request.RefreshToken), messages.FailedLogoutUser) {
+	if handleSessionActionError(w, r, "logout all", h.auth.LogoutAll(r.Context(), sessionID), messages.FailedLogoutUser) {
 		return
 	}
 
+	clearSessionCookie(w, r)
 	logHandler("%s %s logout all completed", r.Method, r.URL.Path)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *AuthHandler) refreshToken(w http.ResponseWriter, r *http.Request, refresh func(context.Context, string) (auth.JwtResponse, error), internalMessage string) {
-	logHandler("%s %s jwt refresh request", r.Method, r.URL.Path)
+func (h *AuthHandler) refreshSession(w http.ResponseWriter, r *http.Request, refresh func(context.Context, string) (auth.SessionResponse, error), internalMessage string) {
+	logHandler("%s %s session refresh request", r.Method, r.URL.Path)
 
-	request, ok := decodeRefreshTokenRequest(w, r, "refresh")
+	sessionID, ok := decodeSessionID(w, r, "refresh")
 	if !ok {
 		return
 	}
 
-	response, err := refresh(r.Context(), request.RefreshToken)
-	if handleRefreshActionError(w, r, "refresh", err, internalMessage) {
+	response, err := refresh(r.Context(), sessionID)
+	if handleSessionActionError(w, r, "refresh", err, internalMessage) {
 		return
 	}
 
-	webresponse.WriteJSON(w, http.StatusOK, jwtResponseToDTO(response))
+	setSessionCookie(w, r, response.SessionID, response.ExpiresAt)
+	webresponse.WriteJSON(w, http.StatusOK, dto.AuthResponse{UUID: uuidFromString(response.UserUUID)})
 }
 
-func decodeLoginRequest(w http.ResponseWriter, r *http.Request) (dto.JwtRequest, bool) {
-	request, err := decodeJSONBody[dto.JwtRequest](r)
+func decodeLoginRequest(w http.ResponseWriter, r *http.Request) (dto.AuthRequest, bool) {
+	request, err := decodeJSONBody[dto.AuthRequest](r)
 	if err != nil {
 		if writeDecodeError(w, err) {
-			return dto.JwtRequest{}, false
+			return dto.AuthRequest{}, false
 		}
 		if writeAuthError(w, r, "invalid auth body", messages.InvalidRequestBody, err, webresponse.WriteBadRequest) {
-			return dto.JwtRequest{}, false
+			return dto.AuthRequest{}, false
 		}
-		return dto.JwtRequest{}, false
+		return dto.AuthRequest{}, false
 	}
 	return request, true
 }
 
-func decodeRefreshTokenRequest(w http.ResponseWriter, r *http.Request, action string) (dto.RefreshJwtRequest, bool) {
-	request, err := decodeJSONBody[dto.RefreshJwtRequest](r)
-	if err != nil {
-		if writeDecodeError(w, err) {
-			return dto.RefreshJwtRequest{}, false
-		}
-		if writeAuthError(w, r, "invalid "+action+" body", messages.InvalidRequestBody, err, webresponse.WriteBadRequest) {
-			return dto.RefreshJwtRequest{}, false
-		}
-		return dto.RefreshJwtRequest{}, false
+func decodeSessionID(w http.ResponseWriter, r *http.Request, action string) (string, bool) {
+	if cookie, err := r.Cookie(auth.SessionCookieName); err == nil && cookie != nil && cookie.Value != "" {
+		return cookie.Value, true
 	}
-	return request, true
+
+	logHandler("%s %s missing %s session", r.Method, r.URL.Path, action)
+	webresponse.WriteUnauthorized(w)
+	return "", false
 }
 
 func handleAuthActionError(w http.ResponseWriter, r *http.Request, action string, err error, internalMessage string) bool {
@@ -249,12 +233,12 @@ func handleAuthActionError(w http.ResponseWriter, r *http.Request, action string
 	return false
 }
 
-func handleRefreshActionError(w http.ResponseWriter, r *http.Request, action string, err error, internalMessage string) bool {
+func handleSessionActionError(w http.ResponseWriter, r *http.Request, action string, err error, internalMessage string) bool {
 	if err == nil {
 		return false
 	}
 	if errors.Is(err, auth.ErrInvalidToken) {
-		logHandler("%s %s invalid %s token: %v", r.Method, r.URL.Path, action, err)
+		logHandler("%s %s invalid %s session: %v", r.Method, r.URL.Path, action, err)
 		webresponse.WriteUnauthorized(w)
 		return true
 	}

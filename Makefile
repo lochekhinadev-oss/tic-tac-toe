@@ -10,7 +10,7 @@ REDIS_URL ?= redis://localhost:6379/0
 SEED_USERS ?= 10000
 SEED_GAMES ?= 100000
 
-.PHONY: test coverage docs run seed-db cleanup-db
+.PHONY: test coverage docs run seed-db cleanup-db certs
 
 test: docs
 	cd $(BACKEND_DIR) && GOCACHE=$(GOCACHE) go test ./...
@@ -32,3 +32,10 @@ seed-db:
 cleanup-db:
 	cp .env.example .env
 	CLEANUP_ENABLED=1 docker compose run --rm cleanup
+
+certs:
+	@if [ -s certs/tic-tac-toe.crt ] && [ -s certs/tic-tac-toe.key ]; then \
+		echo "HTTPS certificates already exist"; \
+	else \
+		./scripts/generate-https-certs.sh ./certs; \
+	fi
