@@ -4,13 +4,12 @@ import (
 	"go.uber.org/fx"
 
 	"tic-tac-toe/app/application"
+	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/auth"
 	"tic-tac-toe/infrastructure/postgres/datasource"
 	"tic-tac-toe/infrastructure/postgres/repository"
+	"tic-tac-toe/infrastructure/rediscache"
 	"tic-tac-toe/internal/transport/http/handler"
-	authhandler "tic-tac-toe/internal/transport/http/handler/auth"
-	gamehandler "tic-tac-toe/internal/transport/http/handler/game"
-	userhandler "tic-tac-toe/internal/transport/http/handler/user"
 	"tic-tac-toe/internal/transport/http/middleware"
 )
 
@@ -19,6 +18,7 @@ var ConfigModule = fx.Module(
 	fx.Provide(
 		datasource.NewDatabaseConfig,
 		auth.NewAuthConfig,
+		rediscache.NewConfig,
 		NewHTTPConfig,
 	),
 	fx.Invoke(ValidateConfigs),
@@ -29,9 +29,13 @@ var ApplicationModule = fx.Module(
 	fx.Provide(
 		fx.Annotate(
 			application.NewGameService,
-			fx.As(new(handler.GameLogic)),
+			fx.As(new(handler.GameCommandService)),
 		),
-		application.NewUserService,
+		fx.Annotate(
+			application.NewUserService,
+			fx.As(new(domain.UserService)),
+		),
+		AsUserQueryService,
 	),
 )
 
@@ -40,9 +44,12 @@ var InfrastructureModule = fx.Module(
 	fx.Provide(
 		datasource.NewDatabase,
 		fx.Annotate(
-			repository.NewGameRepository,
-			fx.As(new(handler.GameStorage)),
+			rediscache.NewClient,
+			fx.As(new(rediscache.LeaderboardCache)),
 		),
+		repository.NewGameRepository,
+		AsGameCommandStorage,
+		AsGameQueryService,
 		repository.NewUserRepository,
 		repository.NewAuthSessionRepository,
 		auth.NewJwtProvider,
@@ -57,9 +64,9 @@ var WebModule = fx.Module(
 	"web",
 	fx.Provide(
 		NewTokenAuthenticator,
-		gamehandler.New,
-		authhandler.New,
-		userhandler.New,
+		handler.NewGameHandler,
+		handler.NewAuthHandler,
+		handler.NewUserHandler,
 		middleware.NewUserAuthenticator,
 		NewRouter,
 	),
@@ -74,6 +81,7 @@ var HTTPModule = fx.Module(
 var LifecycleModule = fx.Module(
 	"lifecycle",
 	fx.Invoke(RegisterDatabaseLifecycle),
+	fx.Invoke(RegisterRedisLifecycle),
 )
 
 var AppModule = fx.Options(
@@ -93,4 +101,16 @@ func NewApp(options ...fx.Option) *fx.App {
 
 func NewTokenAuthenticator(authService auth.AuthService) middleware.TokenAuthenticator {
 	return authService
+}
+
+func AsGameCommandStorage(repo *repository.GameRepository) handler.GameCommandStorage {
+	return repo
+}
+
+func AsGameQueryService(repo *repository.GameRepository) handler.GameQueryService {
+	return repo
+}
+
+func AsUserQueryService(userService domain.UserService) handler.UserQueryService {
+	return userService
 }

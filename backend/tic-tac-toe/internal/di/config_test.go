@@ -11,6 +11,7 @@ import (
 
 	"tic-tac-toe/infrastructure/auth"
 	"tic-tac-toe/infrastructure/postgres/datasource"
+	"tic-tac-toe/infrastructure/rediscache"
 )
 
 func TestValidateConfigs(t *testing.T) {
@@ -18,9 +19,25 @@ func TestValidateConfigs(t *testing.T) {
 	if err := ValidateConfigs(
 		datasource.DatabaseConfig{DatabaseURL: "postgres://postgres:postgres@localhost:5432/tic_tac_toe?sslmode=disable"},
 		authConfig,
-		HTTPConfig{Addr: ":8080"},
+		rediscache.Config{URL: "redis://localhost:6379/0"},
+		HTTPConfig{Port: "8080"},
 	); err != nil {
 		t.Fatalf("expected valid configs, got %v", err)
+	}
+}
+
+func TestNormalizeHTTPPort(t *testing.T) {
+	cases := map[string]string{
+		"":       ":8080",
+		"8080":   ":8080",
+		":8080":  ":8080",
+		" 8080 ": ":8080",
+	}
+
+	for input, expected := range cases {
+		if got := normalizeHTTPPort(input); got != expected {
+			t.Fatalf("normalizeHTTPPort(%q) = %q, want %q", input, got, expected)
+		}
 	}
 }
 
@@ -53,7 +70,8 @@ func TestValidateConfigsRejectsInvalidValues(t *testing.T) {
 	err := ValidateConfigs(
 		datasource.DatabaseConfig{DatabaseURL: "://bad-url"},
 		auth.AuthConfig{JWTPrivateKeyPEM: "", JWTPublicKeyPEM: "", JWTKeyID: "", JWTIssuer: "", JWTAudience: "", AccessTokenTTL: 0, RefreshTokenTTL: 0},
-		HTTPConfig{Addr: ""},
+		rediscache.Config{URL: "redis://localhost:6379/0"},
+		HTTPConfig{Port: ""},
 	)
 	if err == nil {
 		t.Fatal("expected validation error")

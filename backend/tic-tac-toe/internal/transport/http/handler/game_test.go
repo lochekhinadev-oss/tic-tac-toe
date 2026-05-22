@@ -112,7 +112,8 @@ func (s *storageStub) JoinGame(context.Context, string, string) (domain.Game, er
 var _ GameStorage = (*storageStub)(nil)
 
 func TestNewGameHandler(t *testing.T) {
-	handler := NewGameHandler(&logicStub{}, &storageStub{})
+	storage := &storageStub{}
+	handler := NewGameHandler(&logicStub{}, storage, storage)
 	if handler == nil {
 		t.Fatal("expected handler")
 	}

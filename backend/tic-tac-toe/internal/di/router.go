@@ -1,16 +1,14 @@
 package di
 
 import (
-	"tic-tac-toe/infrastructure/postgres/datasource"
-	authhandler "tic-tac-toe/internal/transport/http/handler/auth"
-	gamehandler "tic-tac-toe/internal/transport/http/handler/game"
-	userhandler "tic-tac-toe/internal/transport/http/handler/user"
-	"tic-tac-toe/internal/transport/http/middleware"
-
 	"github.com/go-chi/chi/v5"
+
+	"tic-tac-toe/infrastructure/postgres/datasource"
+	"tic-tac-toe/internal/transport/http/handler"
+	"tic-tac-toe/internal/transport/http/middleware"
 )
 
-func NewRouter(gameHandler *gamehandler.Handler, authHandler *authhandler.Handler, userHandler *userhandler.Handler, authenticator *middleware.UserAuthenticator, db datasource.Database) chi.Router {
+func NewRouter(gameHandler *handler.GameHandler, authHandler *handler.AuthHandler, userHandler *handler.UserHandler, authenticator *middleware.UserAuthenticator, db datasource.Database) chi.Router {
 	router := chi.NewRouter()
 
 	registerRouterMiddleware(router)

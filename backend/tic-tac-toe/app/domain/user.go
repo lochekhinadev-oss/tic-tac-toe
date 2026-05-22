@@ -13,6 +13,7 @@ type UserRepository interface {
 	GetUserByLogin(ctx context.Context, login string) (User, error)
 	GetUserByUUID(ctx context.Context, uuid string) (User, error)
 	UpdateUserPassword(ctx context.Context, uuid string, password string) error
+	DeleteUser(ctx context.Context, uuid string) error
 }
 
 type UserService interface {
@@ -20,5 +21,6 @@ type UserService interface {
 	GetUserByLogin(ctx context.Context, login string) (User, error)
 	GetUserByUUID(ctx context.Context, uuid string) (User, error)
 	UpdatePassword(ctx context.Context, uuid string, password string) error
+	DeleteUser(ctx context.Context, uuid string) error
 	VerifyPassword(user User, password string) (bool, bool)
 }

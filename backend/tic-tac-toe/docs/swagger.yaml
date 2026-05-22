@@ -711,6 +711,31 @@ paths:
       tags:
       - users
   /users/me:
+    delete:
+      description: Soft-deletes the authenticated user account by marking it deleted
+        and making the login unavailable for future auth.
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: User deleted
+        "401":
+          description: Missing or invalid Bearer token
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: User was not deleted
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete current user
+      tags:
+      - users
     get:
       description: Returns public user information for the authenticated Bearer token.
       produces:

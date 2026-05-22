@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,6 +12,7 @@ import (
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/postgres/datasource"
 	"tic-tac-toe/infrastructure/postgres/mapper"
+	"tic-tac-toe/infrastructure/rediscache"
 	"tic-tac-toe/internal/logging"
 )
 
@@ -30,14 +30,7 @@ const (
 type GameRepository struct {
 	db datasource.Database
 
-	now                func() time.Time
-	leaderboardCacheMu sync.Mutex
-	leaderboardCache   map[int]cachedLeaderboard
-}
-
-type cachedLeaderboard struct {
-	players   []domain.WonGameInfo
-	expiresAt time.Time
+	leaderboardCache rediscache.LeaderboardCache
 }
 
 type sqlExecutor interface {
@@ -48,11 +41,10 @@ type transactionStarter interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-func NewGameRepository(db datasource.Database) *GameRepository {
+func NewGameRepository(db datasource.Database, leaderboardCache rediscache.LeaderboardCache) *GameRepository {
 	return &GameRepository{
 		db:               db,
-		now:              time.Now,
-		leaderboardCache: make(map[int]cachedLeaderboard),
+		leaderboardCache: leaderboardCache,
 	}
 }
 
@@ -79,7 +71,7 @@ func (r *GameRepository) SaveGame(ctx context.Context, game domain.Game) error {
 	if err != nil {
 		return err
 	}
-	r.invalidateLeaderboardCacheIfCompleted(game)
+	r.invalidateLeaderboardCacheIfCompleted(ctx, game)
 
 	logGameRepository("save game ok", "uuid=%q", game.UUID)
 	return nil
@@ -135,7 +127,7 @@ func (r *GameRepository) SaveGameIfUnchanged(ctx context.Context, previous domai
 	if err != nil {
 		return err
 	}
-	r.invalidateLeaderboardCacheIfCompleted(next)
+	r.invalidateLeaderboardCacheIfCompleted(ctx, next)
 
 	logGameRepository("save game if unchanged ok", "uuid=%q", next.UUID)
 	return nil
@@ -223,7 +215,9 @@ func (r *GameRepository) ListCompletedGamesByUserUUID(ctx context.Context, userU
 
 func (r *GameRepository) ListTopPlayers(ctx context.Context, limit int) ([]domain.WonGameInfo, error) {
 	logGameRepository("list top players", "limit=%d", limit)
-	if players, ok := r.cachedTopPlayers(limit); ok {
+	if players, ok, err := r.cachedTopPlayers(ctx, limit); err != nil {
+		logGameRepository("list top players cache read failed", "limit=%d: %v", limit, err)
+	} else if ok {
 		logGameRepository("list top players cache hit", "limit=%d count=%d", limit, len(players))
 		return players, nil
 	}
@@ -239,45 +233,46 @@ func (r *GameRepository) ListTopPlayers(ctx context.Context, limit int) ([]domai
 	if err != nil {
 		return nil, err
 	}
-	r.cacheTopPlayers(limit, players)
+	if err := r.cacheTopPlayers(ctx, limit, players); err != nil {
+		logGameRepository("list top players cache write failed", "limit=%d: %v", limit, err)
+	}
 	logGameRepository("list top players ok", "count=%d", len(players))
 	return players, nil
 }
 
-func (r *GameRepository) cachedTopPlayers(limit int) ([]domain.WonGameInfo, bool) {
-	r.leaderboardCacheMu.Lock()
-	defer r.leaderboardCacheMu.Unlock()
+func (r *GameRepository) cachedTopPlayers(ctx context.Context, limit int) ([]domain.WonGameInfo, bool, error) {
+	if r.leaderboardCache == nil {
+		return nil, false, nil
+	}
 
-	entry, ok := r.leaderboardCache[limit]
-	if !ok {
-		return nil, false
+	players, ok, err := r.leaderboardCache.GetLeaderboard(ctx, limit)
+	if err != nil || !ok {
+		return nil, ok, err
 	}
-	if !r.now().Before(entry.expiresAt) {
-		delete(r.leaderboardCache, limit)
-		return nil, false
-	}
-	return cloneTopPlayers(entry.players), true
+
+	return cloneTopPlayers(players), true, nil
 }
 
-func (r *GameRepository) cacheTopPlayers(limit int, players []domain.WonGameInfo) {
-	r.leaderboardCacheMu.Lock()
-	defer r.leaderboardCacheMu.Unlock()
-
-	r.leaderboardCache[limit] = cachedLeaderboard{
-		players:   cloneTopPlayers(players),
-		expiresAt: r.now().Add(leaderboardCacheTTL),
+func (r *GameRepository) cacheTopPlayers(ctx context.Context, limit int, players []domain.WonGameInfo) error {
+	if r.leaderboardCache == nil {
+		return nil
 	}
+
+	return r.leaderboardCache.SetLeaderboard(ctx, limit, cloneTopPlayers(players), leaderboardCacheTTL)
 }
 
-func (r *GameRepository) invalidateLeaderboardCacheIfCompleted(game domain.Game) {
+func (r *GameRepository) invalidateLeaderboardCacheIfCompleted(ctx context.Context, game domain.Game) {
 	if game.State != domain.GameStatePlayerWins && game.State != domain.GameStateDraw {
 		return
 	}
 
-	r.leaderboardCacheMu.Lock()
-	defer r.leaderboardCacheMu.Unlock()
+	if r.leaderboardCache == nil {
+		return
+	}
 
-	r.leaderboardCache = make(map[int]cachedLeaderboard)
+	if err := r.leaderboardCache.InvalidateLeaderboard(ctx); err != nil {
+		logGameRepository("invalidate leaderboard cache failed", "uuid=%q: %v", game.UUID, err)
+	}
 }
 
 func cloneTopPlayers(players []domain.WonGameInfo) []domain.WonGameInfo {

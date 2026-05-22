@@ -12,10 +12,10 @@ import (
 )
 
 type UserHandler struct {
-	users UserService
+	users UserQueryService
 }
 
-func NewUserHandler(users domain.UserService) *UserHandler {
+func NewUserHandler(users UserQueryService) *UserHandler {
 	return &UserHandler{users: users}
 }
 
@@ -68,6 +68,39 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request, uuid strin
 // @Router /users/me [get]
 func (h *UserHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	h.GetUser(w, r, middleware.UserUUIDFromContext(r.Context()))
+}
+
+// DeleteCurrentUser soft-deletes the authenticated user.
+// @Summary Delete current user
+// @Description Soft-deletes the authenticated user account by marking it deleted and making the login unavailable for future auth.
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Success 204 "User deleted"
+// @Failure 401 {object} dto.ErrorResponse "Missing or invalid Bearer token"
+// @Failure 404 {object} dto.ErrorResponse "User not found"
+// @Failure 500 {object} dto.ErrorResponse "User was not deleted"
+// @Router /users/me [delete]
+func (h *UserHandler) DeleteCurrentUser(w http.ResponseWriter, r *http.Request) {
+	uuid := middleware.UserUUIDFromContext(r.Context())
+	logHandler("%s %s delete user request uuid=%s", r.Method, r.URL.Path, uuid)
+
+	if uuid == "" {
+		logHandler("%s %s unauthorized delete user request", r.Method, r.URL.Path)
+		webresponse.WriteUnauthorized(w)
+		return
+	}
+
+	if err := h.users.DeleteUser(r.Context(), uuid); errors.Is(err, domain.ErrUserNotFound) {
+		logHandler("%s %s user not found uuid=%s", r.Method, r.URL.Path, uuid)
+		webresponse.WriteNotFound(w, messages.UserNotFound)
+		return
+	} else if h.writeUserError(w, r, "failed to delete user uuid="+uuid, messages.FailedDeleteUser, err) {
+		return
+	}
+
+	logHandler("%s %s deleted user uuid=%s", r.Method, r.URL.Path, uuid)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *UserHandler) writeUserError(w http.ResponseWriter, r *http.Request, logMessage, responseMessage string, err error) bool {

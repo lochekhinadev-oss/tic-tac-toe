@@ -164,6 +164,71 @@ input {
   margin-top: 14px;
 }
 
+.leaderboard-panel {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(47, 42, 36, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.label-hint {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.leaderboard {
+  display: grid;
+  gap: 8px;
+}
+
+.leaderboard-empty {
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.leaderboard-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(47, 42, 36, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.leaderboard-rank {
+  width: 2rem;
+  text-align: center;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.leaderboard-login {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-ratio {
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .join-form {
   display: grid;
   gap: 8px;
@@ -332,5 +397,14 @@ button:disabled {
 
   .join-row {
     grid-template-columns: 1fr;
+  }
+
+  .leaderboard-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .leaderboard-ratio {
+    grid-column: 2;
+    justify-self: start;
   }
 }

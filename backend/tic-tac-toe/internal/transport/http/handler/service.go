@@ -7,15 +7,22 @@ import (
 	"tic-tac-toe/infrastructure/auth"
 )
 
-type GameLogic interface {
+type GameStorage interface {
+	GameCommandStorage
+	GameQueryStorage
+}
+
+type GameCommandService interface {
 	CreateGame(uuid string, creatorUUID string, mode domain.GameMode) (domain.Game, error)
 	JoinGame(game domain.Game, userUUID string) (domain.Game, error)
 	ApplyMove(previous domain.Game, current domain.Game, userUUID string) (domain.Game, error)
 }
 
-type GameStorage interface {
-	GameCommandStorage
-	GameQueryStorage
+type GameQueryService interface {
+	GetGame(ctx context.Context, uuid string) (domain.Game, error)
+	ListActiveGames(ctx context.Context) ([]domain.Game, error)
+	ListCompletedGamesByUserUUID(ctx context.Context, userUUID string) ([]domain.Game, error)
+	ListTopPlayers(ctx context.Context, limit int) ([]domain.WonGameInfo, error)
 }
 
 type GameCommandStorage interface {
@@ -41,6 +48,7 @@ type AuthService interface {
 	AuthenticateToken(ctx context.Context, header string) (string, error)
 }
 
-type UserService interface {
+type UserQueryService interface {
 	GetUserByUUID(ctx context.Context, uuid string) (domain.User, error)
+	DeleteUser(ctx context.Context, uuid string) error
 }

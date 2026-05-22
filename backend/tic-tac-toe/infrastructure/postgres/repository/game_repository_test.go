@@ -13,12 +13,21 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"tic-tac-toe/app/domain"
+	"tic-tac-toe/infrastructure/postgres/datasource"
 )
+
+func newGameRepo(db datasource.Database) *GameRepository {
+	return NewGameRepository(db, &leaderboardCacheStub{})
+}
+
+func newGameRepoWithCache(db datasource.Database, cache *leaderboardCacheStub) *GameRepository {
+	return NewGameRepository(db, cache)
+}
 
 func TestGameRepositorySaveAndGet(t *testing.T) {
 	game := sampleGame()
 	db := &databaseStub{}
-	repo := NewGameRepository(db)
+	repo := newGameRepo(db)
 
 	if err := repo.SaveGame(context.Background(), game); err != nil {
 		t.Fatalf("unexpected save error: %v", err)
@@ -40,7 +49,7 @@ func TestGameRepositorySaveAndGet(t *testing.T) {
 }
 
 func TestGameRepositoryGetMissing(t *testing.T) {
-	repo := NewGameRepository(&databaseStub{queryErr: pgx.ErrNoRows})
+	repo := newGameRepo(&databaseStub{queryErr: pgx.ErrNoRows})
 	_, err := repo.GetGame(context.Background(), "missing")
 	if !errors.Is(err, ErrGameNotFound) {
 		t.Fatalf("expected ErrGameNotFound, got %v", err)
@@ -49,7 +58,7 @@ func TestGameRepositoryGetMissing(t *testing.T) {
 
 func TestGameRepositorySaveGameIfUnchangedConflict(t *testing.T) {
 	db := &databaseStub{rowsAffected: "UPDATE 0"}
-	repo := NewGameRepository(db)
+	repo := newGameRepo(db)
 
 	err := repo.SaveGameIfUnchanged(context.Background(), sampleGame(), sampleGame())
 	if !errors.Is(err, ErrGameConflict) {
@@ -68,7 +77,7 @@ func TestGameRepositoryAppliesCompletedGameStats(t *testing.T) {
 	game.PlayerOUUID = "user-o"
 
 	db := &databaseStub{}
-	repo := NewGameRepository(db)
+	repo := newGameRepo(db)
 
 	if err := repo.SaveGame(context.Background(), game); err != nil {
 		t.Fatalf("unexpected save error: %v", err)
@@ -87,7 +96,7 @@ func TestGameRepositorySkipsStatsForActiveGame(t *testing.T) {
 	game.State = domain.GameStatePlayerToMove
 
 	db := &databaseStub{}
-	repo := NewGameRepository(db)
+	repo := newGameRepo(db)
 
 	if err := repo.SaveGame(context.Background(), game); err != nil {
 		t.Fatalf("unexpected save error: %v", err)
@@ -103,7 +112,8 @@ func TestGameRepositorySkipsStatsForActiveGame(t *testing.T) {
 
 func TestGameRepositoryCachesTopPlayers(t *testing.T) {
 	db := &databaseStub{topPlayers: []domain.WonGameInfo{sampleTopPlayer()}}
-	repo := NewGameRepository(db)
+	cache := &leaderboardCacheStub{hit: true, players: []domain.WonGameInfo{sampleTopPlayer()}}
+	repo := newGameRepoWithCache(db, cache)
 
 	first, err := repo.ListTopPlayers(context.Background(), 10)
 	if err != nil {
@@ -116,11 +126,14 @@ func TestGameRepositoryCachesTopPlayers(t *testing.T) {
 		t.Fatalf("unexpected second leaderboard error: %v", err)
 	}
 
-	if db.topPlayersQueries != 1 {
-		t.Fatalf("expected one leaderboard query, got %d", db.topPlayersQueries)
+	if db.topPlayersQueries != 0 {
+		t.Fatalf("expected cache hit without leaderboard query, got %d", db.topPlayersQueries)
 	}
 	if second[0].Login != "player" {
 		t.Fatalf("expected cached players to be cloned, got %#v", second)
+	}
+	if cache.getCalls != 2 {
+		t.Fatalf("expected two cache reads, got %d", cache.getCalls)
 	}
 }
 
@@ -131,7 +144,8 @@ func TestGameRepositoryInvalidatesTopPlayersCacheAfterCompletedGame(t *testing.T
 	game.PlayerOUUID = "user-o"
 
 	db := &databaseStub{topPlayers: []domain.WonGameInfo{sampleTopPlayer()}}
-	repo := NewGameRepository(db)
+	cache := &leaderboardCacheStub{hit: true, players: []domain.WonGameInfo{sampleTopPlayer()}}
+	repo := newGameRepoWithCache(db, cache)
 
 	if _, err := repo.ListTopPlayers(context.Background(), 10); err != nil {
 		t.Fatalf("unexpected first leaderboard error: %v", err)
@@ -143,8 +157,11 @@ func TestGameRepositoryInvalidatesTopPlayersCacheAfterCompletedGame(t *testing.T
 		t.Fatalf("unexpected second leaderboard error: %v", err)
 	}
 
-	if db.topPlayersQueries != 2 {
-		t.Fatalf("expected cache invalidation and second query, got %d queries", db.topPlayersQueries)
+	if db.topPlayersQueries != 1 {
+		t.Fatalf("expected one post-invalidation leaderboard query, got %d queries", db.topPlayersQueries)
+	}
+	if cache.invalidateCalls != 1 {
+		t.Fatalf("expected one cache invalidation, got %d", cache.invalidateCalls)
 	}
 }
 
@@ -233,6 +250,46 @@ func (d *databaseStub) Query(_ context.Context, sql string, args ...any) (pgx.Ro
 	return d.queryRows, d.queryError
 }
 
+type leaderboardCacheStub struct {
+	players         []domain.WonGameInfo
+	hit             bool
+	getCalls        int
+	setCalls        int
+	invalidateCalls int
+	getErr          error
+	setErr          error
+	invalidateErr   error
+}
+
+func (c *leaderboardCacheStub) GetLeaderboard(context.Context, int) ([]domain.WonGameInfo, bool, error) {
+	c.getCalls++
+	if c.getErr != nil {
+		return nil, false, c.getErr
+	}
+	if !c.hit {
+		return nil, false, nil
+	}
+	return cloneTopPlayers(c.players), true, nil
+}
+
+func (c *leaderboardCacheStub) SetLeaderboard(_ context.Context, _ int, players []domain.WonGameInfo, _ time.Duration) error {
+	c.setCalls++
+	if c.setErr != nil {
+		return c.setErr
+	}
+	c.players = cloneTopPlayers(players)
+	c.hit = true
+	return nil
+}
+
+func (c *leaderboardCacheStub) InvalidateLeaderboard(context.Context) error {
+	c.invalidateCalls++
+	c.hit = false
+	return c.invalidateErr
+}
+
+func (c *leaderboardCacheStub) Close() error { return nil }
+
 func (d *databaseStub) Ping(context.Context) error {
 	return nil
 }
@@ -245,7 +302,7 @@ func TestGameRepositoryListAndJoin(t *testing.T) {
 	game.NextPlayerUUID = "user-x"
 
 	db := &databaseStub{queryRows: &rowsStub{games: []domain.Game{game}}}
-	repo := NewGameRepository(db)
+	repo := newGameRepo(db)
 
 	games, err := repo.ListActiveGames(context.Background())
 	if err != nil {
@@ -254,7 +311,7 @@ func TestGameRepositoryListAndJoin(t *testing.T) {
 	assertGames(t, games, game)
 
 	historyDB := &databaseStub{queryRows: &rowsStub{games: []domain.Game{game}}}
-	historyRepo := NewGameRepository(historyDB)
+	historyRepo := newGameRepo(historyDB)
 	completed, err := historyRepo.ListCompletedGamesByUserUUID(context.Background(), "user-x")
 	if err != nil {
 		t.Fatalf("unexpected completed list error: %v", err)
@@ -262,7 +319,7 @@ func TestGameRepositoryListAndJoin(t *testing.T) {
 	assertGames(t, completed, game)
 
 	topDB := &databaseStub{topPlayers: []domain.WonGameInfo{sampleTopPlayer()}}
-	topRepo := NewGameRepository(topDB)
+	topRepo := newGameRepo(topDB)
 	players, err := topRepo.ListTopPlayers(context.Background(), 10)
 	if err != nil {
 		t.Fatalf("unexpected top players error: %v", err)
@@ -282,7 +339,7 @@ func TestGameRepositoryListAndJoin(t *testing.T) {
 func TestGameRepositoryUsesParameterizedQueries(t *testing.T) {
 	t.Run("get game", func(t *testing.T) {
 		db := &databaseStub{savedField: sampleGame().Field}
-		repo := NewGameRepository(db)
+		repo := newGameRepo(db)
 
 		_, err := repo.GetGame(context.Background(), sqlInjectionPayload)
 		if err != nil {
@@ -295,7 +352,7 @@ func TestGameRepositoryUsesParameterizedQueries(t *testing.T) {
 
 	t.Run("completed games", func(t *testing.T) {
 		db := &databaseStub{queryRows: &rowsStub{}}
-		repo := NewGameRepository(db)
+		repo := newGameRepo(db)
 
 		_, err := repo.ListCompletedGamesByUserUUID(context.Background(), sqlInjectionPayload)
 		if err != nil {
@@ -308,7 +365,7 @@ func TestGameRepositoryUsesParameterizedQueries(t *testing.T) {
 
 	t.Run("join game", func(t *testing.T) {
 		db := &databaseStub{savedField: sampleGame().Field}
-		repo := NewGameRepository(db)
+		repo := newGameRepo(db)
 
 		_, err := repo.JoinGame(context.Background(), sqlInjectionPayload, "user-o")
 		if err != nil {
@@ -321,32 +378,32 @@ func TestGameRepositoryUsesParameterizedQueries(t *testing.T) {
 }
 
 func TestGameRepositoryErrors(t *testing.T) {
-	repo := NewGameRepository(&databaseStub{queryError: errors.New("query failed")})
+	repo := newGameRepo(&databaseStub{queryError: errors.New("query failed")})
 	if _, err := repo.ListActiveGames(context.Background()); err == nil {
 		t.Fatal("expected list query error")
 	}
 
-	repo = NewGameRepository(&databaseStub{queryRows: &rowsStub{scanErr: errors.New("scan failed"), games: []domain.Game{{UUID: "game-1"}}}})
+	repo = newGameRepo(&databaseStub{queryRows: &rowsStub{scanErr: errors.New("scan failed"), games: []domain.Game{{UUID: "game-1"}}}})
 	if _, err := repo.ListActiveGames(context.Background()); err == nil {
 		t.Fatal("expected list scan error")
 	}
 
-	repo = NewGameRepository(&databaseStub{queryError: errors.New("query failed")})
+	repo = newGameRepo(&databaseStub{queryError: errors.New("query failed")})
 	if _, err := repo.ListCompletedGamesByUserUUID(context.Background(), "user-1"); err == nil {
 		t.Fatal("expected completed list query error")
 	}
 
-	repo = NewGameRepository(&databaseStub{queryError: errors.New("query failed")})
+	repo = newGameRepo(&databaseStub{queryError: errors.New("query failed")})
 	if _, err := repo.ListTopPlayers(context.Background(), 10); err == nil {
 		t.Fatal("expected top players query error")
 	}
 
-	repo = NewGameRepository(&databaseStub{queryScanErr: errors.New("scan failed"), topPlayers: []domain.WonGameInfo{sampleTopPlayer()}})
+	repo = newGameRepo(&databaseStub{queryScanErr: errors.New("scan failed"), topPlayers: []domain.WonGameInfo{sampleTopPlayer()}})
 	if _, err := repo.ListTopPlayers(context.Background(), 10); err == nil {
 		t.Fatal("expected top players scan error")
 	}
 
-	repo = NewGameRepository(&databaseStub{queryErr: pgx.ErrNoRows})
+	repo = newGameRepo(&databaseStub{queryErr: pgx.ErrNoRows})
 	if _, err := repo.JoinGame(context.Background(), "game-1", "user-o"); !errors.Is(err, ErrGameNotJoinable) {
 		t.Fatalf("expected ErrGameNotJoinable, got %v", err)
 	}

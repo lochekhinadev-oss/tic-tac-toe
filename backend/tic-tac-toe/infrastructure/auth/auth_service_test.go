@@ -17,109 +17,6 @@ import (
 	"tic-tac-toe/infrastructure/postgres/repository"
 )
 
-type sessionStoreStub struct {
-	sessions  map[string]repository.RefreshSession
-	revoked   map[string]bool
-	createErr error
-}
-
-type failingSessionStoreStub struct {
-	*sessionStoreStub
-	revokeErrFor map[string]error
-}
-
-func newSessionStoreStub() *sessionStoreStub {
-	return &sessionStoreStub{
-		sessions: make(map[string]repository.RefreshSession),
-		revoked:  make(map[string]bool),
-	}
-}
-
-func (s *sessionStoreStub) CreateSession(_ context.Context, session repository.RefreshSession) error {
-	if s.createErr != nil {
-		return s.createErr
-	}
-	s.sessions[session.RefreshJTIHash] = session
-	s.revoked[session.RefreshJTIHash] = false
-	return nil
-}
-
-func (s *sessionStoreStub) FindActiveSessionByRefreshJTIHash(_ context.Context, refreshJTIHash string) (repository.RefreshSession, error) {
-	session, ok := s.sessions[refreshJTIHash]
-	if !ok || s.revoked[refreshJTIHash] {
-		return repository.RefreshSession{}, repository.ErrSessionNotFound
-	}
-	return session, nil
-}
-
-func (s *sessionStoreStub) RevokeSession(_ context.Context, refreshJTIHash string) error {
-	if _, ok := s.sessions[refreshJTIHash]; !ok || s.revoked[refreshJTIHash] {
-		return repository.ErrSessionNotFound
-	}
-	s.revoked[refreshJTIHash] = true
-	return nil
-}
-
-func (s *failingSessionStoreStub) RevokeSession(ctx context.Context, refreshJTIHash string) error {
-	if err, ok := s.revokeErrFor[refreshJTIHash]; ok {
-		return err
-	}
-	return s.sessionStoreStub.RevokeSession(ctx, refreshJTIHash)
-}
-
-func (s *sessionStoreStub) RevokeSessionsByUserUUID(_ context.Context, userUUID string) (int64, error) {
-	var revoked int64
-	for key, session := range s.sessions {
-		if session.UserUUID == userUUID && !s.revoked[key] {
-			s.revoked[key] = true
-			revoked++
-		}
-	}
-	return revoked, nil
-}
-
-type userServiceStub struct {
-	user        domain.User
-	createErr   error
-	getErr      error
-	updateErr   error
-	created     domain.User
-	updatedUUID string
-}
-
-func (s *userServiceStub) CreateUser(_ context.Context, user domain.User) error {
-	s.created = user
-	return s.createErr
-}
-
-func (s *userServiceStub) GetUserByLogin(context.Context, string) (domain.User, error) {
-	return s.user, s.getErr
-}
-
-func (s *userServiceStub) GetUserByUUID(context.Context, string) (domain.User, error) {
-	return s.user, s.getErr
-}
-
-func (s *userServiceStub) UpdatePassword(_ context.Context, uuid string, password string) error {
-	s.updatedUUID = uuid
-	hash, err := hashPassword(password)
-	if err != nil {
-		return err
-	}
-	s.user.Password = hash
-	return s.updateErr
-}
-
-func (s *userServiceStub) VerifyPassword(user domain.User, password string) (bool, bool) {
-	if isPasswordHash(password, user.Password) {
-		return true, false
-	}
-	if user.Password == password || user.Password == legacyHashPassword(password) {
-		return true, true
-	}
-	return false, false
-}
-
 func TestAuthServiceSignUp(t *testing.T) {
 	t.Run("creates user", func(t *testing.T) {
 		users := &userServiceStub{}
@@ -185,6 +82,28 @@ func TestAuthServiceAuthenticate(t *testing.T) {
 	}
 	if uuid != "user-1" {
 		t.Fatalf("expected user-1, got %q", uuid)
+	}
+}
+
+func TestAuthServiceAuthenticateTokenRejectsDeletedUser(t *testing.T) {
+	hash, err := hashPassword("secret")
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	users := &userServiceStub{
+		user:      domain.User{UUID: "user-1", Login: "player", Password: hash},
+		deleteErr: nil,
+	}
+	auth := NewAuthService(users, newSessionStoreStub(), NewJwtProvider(testAuthConfig()))
+
+	response, err := auth.Authenticate(context.Background(), JwtRequest{Login: "player", Password: "secret"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	users.getErr = domain.ErrUserNotFound
+	if _, err := auth.AuthenticateToken(context.Background(), "Bearer "+response.AccessToken); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected ErrInvalidToken for deleted user, got %v", err)
 	}
 }
 
@@ -535,24 +454,6 @@ func TestAuthServiceLogoutAllRejectsRepeatedLogoutAll(t *testing.T) {
 	}
 }
 
-func TestAuthServiceAuthenticateRateLimitsRepeatedLogin(t *testing.T) {
-	hash, err := hashPassword("secret")
-	if err != nil {
-		t.Fatalf("failed to hash password: %v", err)
-	}
-	auth := NewAuthService(&userServiceStub{
-		user: domain.User{UUID: "user-1", Login: "player", Password: hash},
-	}, newSessionStoreStub(), NewJwtProvider(testAuthConfig()))
-	auth.limiter = newAuthActionLimiter(1, time.Hour)
-
-	if _, err := auth.Authenticate(context.Background(), JwtRequest{Login: "player", Password: "secret"}); err != nil {
-		t.Fatalf("unexpected first auth error: %v", err)
-	}
-	if _, err := auth.Authenticate(context.Background(), JwtRequest{Login: "player", Password: "secret"}); !errors.Is(err, ErrRateLimited) {
-		t.Fatalf("expected rate limit error, got %v", err)
-	}
-}
-
 func TestAuthServiceAuthenticateTokenRejectsNonBearerHeader(t *testing.T) {
 	auth := NewAuthService(&userServiceStub{}, newSessionStoreStub(), NewJwtProvider(testAuthConfig()))
 
@@ -683,12 +584,5 @@ func TestAuthServiceRefreshRefreshTokenRollsBackOnRevokeError(t *testing.T) {
 	}
 	if _, err := auth.RefreshAccessToken(context.Background(), response.RefreshToken); err != nil {
 		t.Fatalf("expected old session to remain active after rollback, got %v", err)
-	}
-}
-
-func TestAuthServiceAllowActionWithoutLimiter(t *testing.T) {
-	auth := &JwtAuthService{}
-	if !auth.allowAction("anything") {
-		t.Fatal("expected allowAction to pass without limiter")
 	}
 }

@@ -1,21 +1,18 @@
 package di
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	authservice "tic-tac-toe/infrastructure/auth"
 	"tic-tac-toe/internal/transport/http/handler"
 	"tic-tac-toe/internal/transport/http/middleware"
 )
 
 func TestRouterSystemEndpoints(t *testing.T) {
 	router := NewRouter(
-		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}),
+		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}, gameStorageStub{}),
 		handler.NewAuthHandler(authStub{}),
 		handler.NewUserHandler(userServiceStub{}),
 		middleware.NewUserAuthenticator(authStub{}),
@@ -66,7 +63,7 @@ func TestRouterSystemEndpoints(t *testing.T) {
 
 func TestRouterProtectedRouteRequiresAuth(t *testing.T) {
 	router := NewRouter(
-		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}),
+		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}, gameStorageStub{}),
 		handler.NewAuthHandler(authStub{}),
 		handler.NewUserHandler(userServiceStub{}),
 		middleware.NewUserAuthenticator(deniedAuthStub{}),
@@ -86,7 +83,7 @@ func TestRouterProtectedRouteRequiresAuth(t *testing.T) {
 
 func TestRouterRejectsInvalidPathUUID(t *testing.T) {
 	router := NewRouter(
-		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}),
+		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}, gameStorageStub{}),
 		handler.NewAuthHandler(authStub{}),
 		handler.NewUserHandler(userServiceStub{}),
 		middleware.NewUserAuthenticator(authStub{}),
@@ -124,7 +121,7 @@ func TestRouterRejectsInvalidPathUUID(t *testing.T) {
 
 func TestReadyzReportsDatabaseFailure(t *testing.T) {
 	router := NewRouter(
-		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}),
+		handler.NewGameHandler(gameLogicStub{}, gameStorageStub{}, gameStorageStub{}),
 		handler.NewAuthHandler(authStub{}),
 		handler.NewUserHandler(userServiceStub{}),
 		middleware.NewUserAuthenticator(authStub{}),
@@ -140,75 +137,4 @@ func TestReadyzReportsDatabaseFailure(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
 	}
 	assertResponseMessage(t, rec, "database not ready")
-}
-
-func assertResponseMessage(t *testing.T, rec *httptest.ResponseRecorder, message string) {
-	t.Helper()
-
-	var payload struct {
-		Message string `json:"message"`
-	}
-	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if payload.Message != message {
-		t.Fatalf("expected message %q, got %q", message, payload.Message)
-	}
-}
-
-func assertResponseHasKey(t *testing.T, rec *httptest.ResponseRecorder, key string) {
-	t.Helper()
-
-	var payload map[string]any
-	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if _, ok := payload[key]; !ok {
-		t.Fatalf("expected response key %q, got %#v", key, payload)
-	}
-}
-
-func assertSecurityHeaders(t *testing.T, rec *httptest.ResponseRecorder) {
-	t.Helper()
-
-	headers := rec.Header()
-	if headers.Get("X-Content-Type-Options") != "nosniff" {
-		t.Fatalf("expected X-Content-Type-Options header, got %q", headers.Get("X-Content-Type-Options"))
-	}
-	if headers.Get("X-Frame-Options") != "DENY" {
-		t.Fatalf("expected X-Frame-Options header, got %q", headers.Get("X-Frame-Options"))
-	}
-	if headers.Get("Referrer-Policy") != "no-referrer" {
-		t.Fatalf("expected Referrer-Policy header, got %q", headers.Get("Referrer-Policy"))
-	}
-}
-
-type deniedAuthStub struct{}
-
-func (deniedAuthStub) SignUp(context.Context, authservice.SignUpRequest) (bool, error) {
-	return true, nil
-}
-
-func (deniedAuthStub) Authenticate(context.Context, authservice.JwtRequest) (authservice.JwtResponse, error) {
-	return authservice.JwtResponse{}, nil
-}
-
-func (deniedAuthStub) RefreshAccessToken(context.Context, string) (authservice.JwtResponse, error) {
-	return authservice.JwtResponse{}, nil
-}
-
-func (deniedAuthStub) RefreshRefreshToken(context.Context, string) (authservice.JwtResponse, error) {
-	return authservice.JwtResponse{}, nil
-}
-
-func (deniedAuthStub) Logout(context.Context, string) error {
-	return authservice.ErrInvalidToken
-}
-
-func (deniedAuthStub) LogoutAll(context.Context, string) error {
-	return authservice.ErrInvalidToken
-}
-
-func (deniedAuthStub) AuthenticateToken(context.Context, string) (string, error) {
-	return "", authservice.ErrInvalidToken
 }

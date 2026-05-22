@@ -1,14 +1,8 @@
 package auth
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/base64"
-	"encoding/pem"
 	"errors"
-	"math/big"
 	"testing"
 	"time"
 
@@ -218,58 +212,4 @@ func TestJwtProviderRejectsWrongTokenType(t *testing.T) {
 	if _, err := provider.UUIDFromToken(refreshToken); !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("expected UUIDFromToken to reject refresh token, got %v", err)
 	}
-}
-
-func mustSignJWT(t *testing.T, provider *JwtProvider, claims jwtClaims) string {
-	t.Helper()
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = provider.keyID
-	signed, err := token.SignedString(provider.privateKey)
-	if err != nil {
-		t.Fatalf("sign token: %v", err)
-	}
-	return signed
-}
-
-func newTestAuthConfig(privateKeyPEM string, publicKeyPEM string, keyID string, previousPublicKeys string) AuthConfig {
-	return AuthConfig{
-		JWTPrivateKeyPEM:      privateKeyPEM,
-		JWTPublicKeyPEM:       publicKeyPEM,
-		JWTPreviousPublicKeys: previousPublicKeys,
-		JWTKeyID:              keyID,
-		JWTIssuer:             "issuer",
-		JWTAudience:           "audience",
-		AccessTokenTTL:        time.Hour,
-		RefreshTokenTTL:       time.Hour,
-	}
-}
-
-func testAuthConfig() AuthConfig {
-	privateKeyPEM, publicKeyPEM := newDevelopmentKeyPair()
-	return newTestAuthConfig(privateKeyPEM, publicKeyPEM, "test-key", "")
-}
-
-func newTestCertificate(t *testing.T) (string, string) {
-	t.Helper()
-
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate key: %v", err)
-	}
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: "tic-tac-toe.test"},
-		NotBefore:    time.Now().Add(-time.Minute),
-		NotAfter:     time.Now().Add(time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	if err != nil {
-		t.Fatalf("create certificate: %v", err)
-	}
-
-	privatePEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	return string(privatePEM), string(certPEM)
 }

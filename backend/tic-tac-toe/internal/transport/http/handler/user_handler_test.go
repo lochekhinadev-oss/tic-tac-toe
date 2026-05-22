@@ -15,8 +15,9 @@ import (
 )
 
 type userServiceStub struct {
-	user domain.User
-	err  error
+	user      domain.User
+	err       error
+	deleteErr error
 }
 
 func (s *userServiceStub) CreateUser(context.Context, domain.User) error {
@@ -33,6 +34,10 @@ func (s *userServiceStub) GetUserByUUID(context.Context, string) (domain.User, e
 
 func (s *userServiceStub) UpdatePassword(context.Context, string, string) error {
 	return s.err
+}
+
+func (s *userServiceStub) DeleteUser(context.Context, string) error {
+	return s.deleteErr
 }
 
 func (s *userServiceStub) VerifyPassword(domain.User, string) (bool, bool) {
@@ -106,4 +111,32 @@ func TestUserHandlerGetCurrentUser(t *testing.T) {
 	if payload.UUID.String() != testUUID || payload.Login != "player" {
 		t.Fatalf("unexpected user response: %#v", payload)
 	}
+}
+
+func TestUserHandlerDeleteCurrentUser(t *testing.T) {
+	handler := NewUserHandler(&userServiceStub{})
+	req := httptest.NewRequest(http.MethodDelete, "/users/me", nil)
+	req = req.WithContext(middleware.WithUserUUID(req.Context(), testUUID))
+	rec := httptest.NewRecorder()
+
+	handler.DeleteCurrentUser(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+}
+
+func TestUserHandlerDeleteCurrentUserErrors(t *testing.T) {
+	handler := NewUserHandler(&userServiceStub{deleteErr: domain.ErrUserNotFound})
+	req := httptest.NewRequest(http.MethodDelete, "/users/me", nil)
+	req = req.WithContext(middleware.WithUserUUID(req.Context(), testUUID))
+	rec := httptest.NewRecorder()
+
+	handler.DeleteCurrentUser(rec, req)
+	assertStatusAndMessage(t, rec, http.StatusNotFound, "user not found")
+
+	handler = NewUserHandler(&userServiceStub{deleteErr: errors.New("db failed")})
+	rec = httptest.NewRecorder()
+	handler.DeleteCurrentUser(rec, req)
+	assertStatusAndMessage(t, rec, http.StatusInternalServerError, "failed to delete user")
 }

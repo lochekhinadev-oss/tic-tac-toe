@@ -8,11 +8,14 @@ const statusNode = document.getElementById("status");
 const newGameButton = document.getElementById("new-game");
 const newPlayerGameButton = document.getElementById("new-player-game");
 const gamesNode = document.getElementById("games");
+const leaderboardNode = document.getElementById("leaderboard");
 const joinForm = document.getElementById("join-form");
 const joinGameInput = document.getElementById("join-game-id");
 const authForm = document.getElementById("auth-form");
+const signinButton = document.getElementById("signin");
 const signupButton = document.getElementById("signup");
 const logoutButton = document.getElementById("logout");
+const deleteAccountButton = document.getElementById("delete-account");
 const loginInput = document.getElementById("login");
 const passwordInput = document.getElementById("password");
 const youSymbolNode = document.getElementById("you-symbol");
@@ -73,6 +76,46 @@ function updateSession() {
 function updateAuthControls() {
   const loggedIn = Boolean(authHeader);
   logoutButton.disabled = !loggedIn;
+  deleteAccountButton.disabled = !loggedIn;
+}
+
+function renderLeaderboardEmpty(message) {
+  leaderboardNode.innerHTML = "";
+  const empty = document.createElement("div");
+  empty.className = "leaderboard-empty";
+  empty.textContent = message;
+  leaderboardNode.appendChild(empty);
+}
+
+function renderLeaderboard(players) {
+  leaderboardNode.innerHTML = "";
+
+  if (!players || players.length === 0) {
+    renderLeaderboardEmpty("Пока нет данных для таблицы лидеров.");
+    return;
+  }
+
+  players.forEach((player, index) => {
+    const row = document.createElement("div");
+    row.className = "leaderboard-item";
+
+    const rank = document.createElement("div");
+    rank.className = "leaderboard-rank";
+    rank.textContent = String(index + 1);
+
+    const login = document.createElement("div");
+    login.className = "leaderboard-login";
+    login.textContent = player.login || player.uuid || "unknown";
+
+    const ratio = document.createElement("div");
+    ratio.className = "leaderboard-ratio";
+    ratio.textContent = `Win ratio: ${Number(player.winRatio || 0).toFixed(2)}`;
+
+    row.appendChild(rank);
+    row.appendChild(login);
+    row.appendChild(ratio);
+    leaderboardNode.appendChild(row);
+  });
 }
 
 function canRetryAuth(path, options) {
@@ -130,6 +173,7 @@ function clearAuthState(message) {
   clearStoredSession();
   clearGameState();
   gamesNode.innerHTML = "";
+  renderLeaderboardEmpty("Войди в систему, чтобы увидеть таблицу лидеров.");
   updateUser();
   updateAuthControls();
   updateStatus(message || "Войди, чтобы продолжить.");
@@ -193,6 +237,16 @@ async function refreshAccessToken() {
   return tokens;
 }
 
+async function loadLeaderboard() {
+  if (!authHeader) {
+    renderLeaderboardEmpty("Войди в систему, чтобы увидеть таблицу лидеров.");
+    return;
+  }
+
+  const payload = await api("/games/leaderboard?n=10", { method: "GET" });
+  renderLeaderboard(payload.players || []);
+}
+
 function credentials() {
   const login = loginInput.value.trim();
   const password = passwordInput.value;
@@ -211,8 +265,11 @@ async function signUp() {
   updateStatus("Пользователь зарегистрирован. Теперь войди.");
 }
 
-async function signIn(event) {
-  event.preventDefault();
+async function signIn(event = null) {
+  if (event) {
+    event.preventDefault();
+  }
+
   const data = credentials();
   const tokens = await api("/auth", {
     method: "POST",
@@ -227,10 +284,11 @@ async function signIn(event) {
   const storedGameID = localStorage.getItem(storageKeys.gameID);
   if (storedGameID) {
     await restoreGame(storedGameID);
+    await loadLeaderboard();
     return;
+  } else {
+    await startNewGame();
   }
-
-  await startNewGame();
 }
 
 function syncState(game) {
@@ -322,6 +380,9 @@ async function makeMove(row, col) {
       })
     });
     syncState(game);
+    if (game.state === "player_wins" || game.state === "draw") {
+      await loadLeaderboard();
+    }
   } catch (error) {
     board = previousBoard;
     updateStatus(error.message || "Не удалось выполнить ход.");
@@ -359,6 +420,7 @@ async function createGame(mode) {
     });
     syncState(game);
     await loadGames();
+    await loadLeaderboard();
   } catch (error) {
     board = createEmptyBoard();
     currentGame = null;
@@ -429,6 +491,9 @@ async function refreshCurrentGame() {
   try {
     const game = await api("/games/" + encodeURIComponent(gameID), { method: "GET" });
     syncState(game);
+    if (game.state === "player_wins" || game.state === "draw") {
+      await loadLeaderboard();
+    }
   } catch (error) {
     updateStatus(error.message || "Не удалось обновить игру.");
   } finally {
@@ -467,6 +532,7 @@ async function restoreSession() {
     }
 
     await loadGames();
+    await loadLeaderboard();
     return true;
   } catch (error) {
     clearAuthState("Сессия истекла. Войди снова.");
@@ -494,11 +560,36 @@ async function signOut() {
   }
 }
 
+async function deleteAccount() {
+  if (!authHeader) {
+    clearAuthState("Войди, чтобы удалить аккаунт.");
+    return;
+  }
+
+  let deleted = false;
+  try {
+    await api("/users/me", {
+      method: "DELETE"
+    });
+    deleted = true;
+  } catch (error) {
+    if ((error.message || "").toLowerCase().includes("not found")) {
+      deleted = true;
+      return;
+    }
+    throw error;
+  } finally {
+    if (deleted) {
+      clearAuthState("Аккаунт удалён.");
+    }
+  }
+}
+
 async function initializeApp() {
   renderBoard();
   updateAuthControls();
+  renderLeaderboardEmpty("Войди в систему, чтобы увидеть таблицу лидеров.");
   await restoreSession();
-  await loadGames();
 }
 
 async function joinGame(uuid) {
@@ -514,6 +605,7 @@ async function joinGame(uuid) {
     syncState(game);
     joinGameInput.value = "";
     await loadGames();
+    await loadLeaderboard();
   } catch (error) {
     updateStatus(error.message || "Не удалось присоединиться.");
   } finally {
@@ -525,11 +617,17 @@ async function joinGame(uuid) {
 signupButton.addEventListener("click", () => {
   void signUp().catch((error) => updateStatus(error.message || "Не удалось зарегистрироваться."));
 });
+signinButton.addEventListener("click", () => {
+  void signIn().catch((error) => updateStatus(error.message || "Не удалось войти."));
+});
 authForm.addEventListener("submit", (event) => {
   void signIn(event).catch((error) => updateStatus(error.message || "Не удалось войти."));
 });
 logoutButton.addEventListener("click", () => {
   void signOut();
+});
+deleteAccountButton.addEventListener("click", () => {
+  void deleteAccount().catch((error) => updateStatus(error.message || "Не удалось удалить аккаунт."));
 });
 newGameButton.addEventListener("click", () => {
   void startNewGame();

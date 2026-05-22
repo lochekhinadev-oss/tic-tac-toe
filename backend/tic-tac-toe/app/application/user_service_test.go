@@ -13,9 +13,11 @@ type userRepositoryStub struct {
 	saveErr         error
 	getErr          error
 	updateErr       error
+	deleteErr       error
 	saved           domain.User
 	updatedUUID     string
 	updatedPassword string
+	deletedUUID     string
 }
 
 func (r *userRepositoryStub) SaveUser(_ context.Context, user domain.User) error {
@@ -35,6 +37,11 @@ func (r *userRepositoryStub) UpdateUserPassword(_ context.Context, uuid string, 
 	r.updatedUUID = uuid
 	r.updatedPassword = password
 	return r.updateErr
+}
+
+func (r *userRepositoryStub) DeleteUser(context.Context, string) error {
+	r.deletedUUID = "user-1"
+	return r.deleteErr
 }
 
 func TestUserServiceCreateAndVerifyPassword(t *testing.T) {
@@ -69,6 +76,18 @@ func TestUserServiceForwardsRepositoryCalls(t *testing.T) {
 	}
 	if repo.updatedUUID != "user-1" || repo.updatedPassword == "" || repo.updatedPassword == "new-secret" {
 		t.Fatalf("unexpected password update: %#v", repo)
+	}
+}
+
+func TestUserServiceDeleteUserForwardsRepositoryCall(t *testing.T) {
+	repo := &userRepositoryStub{}
+	service := NewUserService(repo)
+
+	if err := service.DeleteUser(context.Background(), "user-1"); err != nil {
+		t.Fatalf("unexpected delete error: %v", err)
+	}
+	if repo.deletedUUID != "user-1" {
+		t.Fatalf("unexpected deleted uuid: %q", repo.deletedUUID)
 	}
 }
 

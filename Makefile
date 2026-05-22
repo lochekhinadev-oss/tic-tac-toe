@@ -6,10 +6,11 @@ POSTGRES_DB ?= tic_tac_toe
 POSTGRES_USER ?= postgres
 POSTGRES_PASSWORD ?= postgres
 DATABASE_URL ?= postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)?sslmode=disable
+REDIS_URL ?= redis://localhost:6379/0
 SEED_USERS ?= 10000
 SEED_GAMES ?= 100000
 
-.PHONY: test coverage docs docs-swag run backend-run seed-db repo-check compose-build compose-up compose-down
+.PHONY: test coverage docs run seed-db cleanup-db
 
 test: docs
 	cd $(BACKEND_DIR) && GOCACHE=$(GOCACHE) go test ./...
@@ -18,20 +19,16 @@ coverage:
 	cd $(BACKEND_DIR) && GOCACHE=$(GOCACHE) go test ./... -cover
 
 docs:
-	cd $(BACKEND_DIR) && GOCACHE=$(GOCACHE) go run ./cmd/docsgen
-
-docs-swag: docs
+	cd $(BACKEND_DIR) && GOCACHE=$(GOCACHE) swag init --generalInfo main.go --output docs --parseInternal --dir ./cmd/app,./app/application,./app/domain,./infrastructure/auth,./infrastructure/postgres/datasource,./infrastructure/postgres/mapper,./infrastructure/postgres/repository,./internal/di,./internal/transport/http/handler,./internal/transport/http/middleware,./internal/transport/http/response,./internal/transport/http/dto
 
 run: docs
+	cp .env.example .env
 	docker compose up --build
 
-backend-run:
-	cd $(BACKEND_DIR) && GOCACHE=$(GOCACHE) go run ./cmd/app
-
 seed-db:
-	cd $(BACKEND_DIR) && GOCACHE=$(GOCACHE) DATABASE_URL="$(DATABASE_URL)" SEED_USERS=$(SEED_USERS) SEED_GAMES=$(SEED_GAMES) go run ./cmd/seed
+	cp .env.example .env
+	SEED_ENABLED=1 SEED_USERS=$(SEED_USERS) SEED_GAMES=$(SEED_GAMES) docker compose --profile seed run --rm -e SEED_ENABLED=1 -e SEED_USERS -e SEED_GAMES seed
 
-repo-check:
-	../scripts/check-forbidden-git-files.sh
-	cd $(BACKEND_DIR) && GOCACHE=$(GOCACHE) go test ./...
-	cd $(BACKEND_DIR) && GOCACHE=$(GOCACHE) go vet ./...
+cleanup-db:
+	cp .env.example .env
+	CLEANUP_ENABLED=1 docker compose run --rm cleanup

@@ -16,7 +16,6 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidAuthHeader  = errors.New("invalid authorization header")
 	ErrInvalidSignUp      = errors.New("login or password is invalid")
-	ErrRateLimited        = errors.New("too many requests")
 )
 
 const (
@@ -30,7 +29,6 @@ type JwtAuthService struct {
 	users    domain.UserService
 	sessions repository.AuthSessionRepository
 	jwt      *JwtProvider
-	limiter  *authActionLimiter
 }
 
 func NewAuthService(users domain.UserService, sessions repository.AuthSessionRepository, jwt *JwtProvider) *JwtAuthService {
@@ -38,7 +36,6 @@ func NewAuthService(users domain.UserService, sessions repository.AuthSessionRep
 		users:    users,
 		sessions: sessions,
 		jwt:      jwt,
-		limiter:  newAuthActionLimiter(10, time.Minute),
 	}
 }
 
@@ -71,10 +68,6 @@ func (s *JwtAuthService) Authenticate(ctx context.Context, request JwtRequest) (
 	logAuth("authenticate request")
 
 	request.Login = strings.TrimSpace(request.Login)
-	if !s.allowAction(authRateLimitKey("login", request.Login)) {
-		logAuth("authenticate rate limited login=%q", request.Login)
-		return JwtResponse{}, ErrRateLimited
-	}
 	if !validCredentials(request.Login, request.Password) {
 		logAuth("authenticate invalid credentials payload")
 		return JwtResponse{}, ErrInvalidCredentials
@@ -113,10 +106,6 @@ func (s *JwtAuthService) Authenticate(ctx context.Context, request JwtRequest) (
 
 func (s *JwtAuthService) RefreshAccessToken(ctx context.Context, refreshToken string) (JwtResponse, error) {
 	logAuth("refresh access token request")
-	if !s.allowAction(authRateLimitKey("refresh", refreshToken)) {
-		logAuth("refresh access rate limited")
-		return JwtResponse{}, ErrRateLimited
-	}
 	session, user, err := s.activeSessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
 		return JwtResponse{}, err
@@ -132,10 +121,6 @@ func (s *JwtAuthService) RefreshAccessToken(ctx context.Context, refreshToken st
 
 func (s *JwtAuthService) RefreshRefreshToken(ctx context.Context, refreshToken string) (JwtResponse, error) {
 	logAuth("refresh refresh token request")
-	if !s.allowAction(authRateLimitKey("refresh-rotation", refreshToken)) {
-		logAuth("refresh rotation rate limited")
-		return JwtResponse{}, ErrRateLimited
-	}
 	session, user, err := s.activeSessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
 		return JwtResponse{}, err
@@ -158,10 +143,6 @@ func (s *JwtAuthService) RefreshRefreshToken(ctx context.Context, refreshToken s
 
 func (s *JwtAuthService) Logout(ctx context.Context, refreshToken string) error {
 	logAuth("logout request")
-	if !s.allowAction(authRateLimitKey("logout", refreshToken)) {
-		logAuth("logout rate limited")
-		return ErrRateLimited
-	}
 	session, user, err := s.activeSessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
 		return err
@@ -177,11 +158,6 @@ func (s *JwtAuthService) Logout(ctx context.Context, refreshToken string) error 
 
 func (s *JwtAuthService) LogoutAll(ctx context.Context, refreshToken string) error {
 	logAuth("logout all request")
-	if !s.allowAction(authRateLimitKey("logout-all", refreshToken)) {
-		logAuth("logout all rate limited")
-		return ErrRateLimited
-	}
-
 	session, user, err := s.activeSessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
 		return err
@@ -196,7 +172,7 @@ func (s *JwtAuthService) LogoutAll(ctx context.Context, refreshToken string) err
 	return nil
 }
 
-func (s *JwtAuthService) AuthenticateToken(_ context.Context, header string) (string, error) {
+func (s *JwtAuthService) AuthenticateToken(ctx context.Context, header string) (string, error) {
 	token, err := parseBearerAuthorizationHeader(header)
 	if err != nil {
 		return "", err
@@ -204,6 +180,13 @@ func (s *JwtAuthService) AuthenticateToken(_ context.Context, header string) (st
 	uuid, err := s.jwt.UUIDFromToken(token)
 	if err != nil {
 		return "", ErrInvalidToken
+	}
+	if _, err := s.users.GetUserByUUID(ctx, uuid); errors.Is(err, domain.ErrUserNotFound) {
+		logAuth("authenticate token user not found uuid=%q", uuid)
+		return "", ErrInvalidToken
+	} else if err != nil {
+		logAuth("authenticate token load user failed uuid=%q: %v", uuid, err)
+		return "", err
 	}
 	return uuid, nil
 }
@@ -318,18 +301,4 @@ func validLogin(login string) bool {
 func hashTokenID(tokenID string) string {
 	sum := sha256.Sum256([]byte(tokenID))
 	return hex.EncodeToString(sum[:])
-}
-
-func authRateLimitKey(action string, value string) string {
-	if action == "login" {
-		return action + ":" + strings.ToLower(strings.TrimSpace(value))
-	}
-	return action + ":" + hashTokenID(value)
-}
-
-func (s *JwtAuthService) allowAction(key string) bool {
-	if s.limiter == nil {
-		return true
-	}
-	return s.limiter.Allow(key)
 }

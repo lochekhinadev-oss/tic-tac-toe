@@ -1,5 +1,7 @@
 package main
 
+import "tic-tac-toe/internal/di"
+
 // @title Tic-Tac-Toe API
 // @version 1.0
 // @description HTTP API for user authentication and tic-tac-toe games.
@@ -9,5 +11,5 @@ package main
 // @in header
 // @name Authorization
 func main() {
-	newApp().Run()
+	di.NewApp().Run()
 }

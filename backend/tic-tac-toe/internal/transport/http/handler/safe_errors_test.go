@@ -80,6 +80,16 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			message: "failed to logout user",
 		},
 		{
+			name: "delete user",
+			handlerCall: func(rec *httptest.ResponseRecorder) {
+				handler := NewUserHandler(&userServiceStub{deleteErr: errors.New(internalErrorText)})
+				req := authenticatedRequest(http.MethodDelete, "/users/me", nil)
+				handler.DeleteCurrentUser(rec, req)
+			},
+			status:  http.StatusInternalServerError,
+			message: "failed to delete user",
+		},
+		{
 			name: "create game save",
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := newGameHandler(&logicStub{}, &storageStub{saveErr: errors.New(internalErrorText)})

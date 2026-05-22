@@ -37,6 +37,11 @@ func TestUserRepositorySaveGetAndUpdate(t *testing.T) {
 		t.Fatalf("unexpected update error: %v", err)
 	}
 	assertSavedArgs(t, db.savedArgs, "user-1", "new-hash")
+
+	if err := repo.DeleteUser(context.Background(), "user-1"); err != nil {
+		t.Fatalf("unexpected delete error: %v", err)
+	}
+	assertSavedArgs(t, db.savedArgs, "user-1")
 }
 
 func TestUserRepositoryNotFound(t *testing.T) {
@@ -83,6 +88,19 @@ func TestUserRepositoryUsesParameterizedQueries(t *testing.T) {
 		err := repo.UpdateUserPassword(context.Background(), "user-1", sqlInjectionPayload)
 		if err != nil {
 			t.Fatalf("unexpected update error: %v", err)
+		}
+
+		assertQueryDoesNotContainPayload(t, db.lastExecQuery)
+		assertArgsContainPayload(t, db.savedArgs)
+	})
+
+	t.Run("delete user", func(t *testing.T) {
+		db := &databaseStub{}
+		repo := NewUserRepository(db)
+
+		err := repo.DeleteUser(context.Background(), sqlInjectionPayload)
+		if err != nil {
+			t.Fatalf("unexpected delete error: %v", err)
 		}
 
 		assertQueryDoesNotContainPayload(t, db.lastExecQuery)

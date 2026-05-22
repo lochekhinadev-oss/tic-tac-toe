@@ -87,6 +87,17 @@ func (s *UserService) UpdatePassword(ctx context.Context, uuid string, password 
 	return nil
 }
 
+func (s *UserService) DeleteUser(ctx context.Context, uuid string) error {
+	logApplication("delete user uuid=%q", uuid)
+	if err := s.repository.DeleteUser(ctx, uuid); err != nil {
+		logApplication("delete user failed uuid=%q: %v", uuid, err)
+		return err
+	}
+
+	logApplication("delete user ok uuid=%q", uuid)
+	return nil
+}
+
 func (s *UserService) VerifyPassword(user domain.User, password string) (bool, bool) {
 	logApplication("verify password uuid=%q login=%q", user.UUID, user.Login)
 	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) == nil {

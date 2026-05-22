@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -16,7 +18,7 @@ import (
 )
 
 type HTTPConfig struct {
-	Addr string
+	Port string
 }
 
 const (
@@ -27,19 +29,37 @@ const (
 )
 
 func (c HTTPConfig) Validate() error {
-	if c.Addr == "" {
-		return fmt.Errorf("http addr must not be empty")
+	if c.Port == "" {
+		return fmt.Errorf("http port must not be empty")
 	}
 	return nil
 }
 
 func NewHTTPConfig() HTTPConfig {
-	return HTTPConfig{Addr: config.String("HTTP_ADDR", ":8080")}
+	return HTTPConfig{Port: normalizeHTTPPort(config.String("HTTP_PORT", "8080"))}
+}
+
+func normalizeHTTPPort(port string) string {
+	port = strings.TrimSpace(port)
+	if port == "" {
+		return ":8080"
+	}
+
+	port = strings.TrimPrefix(port, ":")
+	if _, err := strconv.Atoi(port); err != nil {
+		return port
+	}
+
+	return ":" + port
+}
+
+func (c HTTPConfig) Addr() string {
+	return normalizeHTTPPort(c.Port)
 }
 
 func NewHTTPServer(router chi.Router, config HTTPConfig) *http.Server {
 	return &http.Server{
-		Addr:              config.Addr,
+		Addr:              config.Addr(),
 		Handler:           router,
 		ReadHeaderTimeout: httpReadHeaderTimeout,
 		ReadTimeout:       httpReadTimeout,

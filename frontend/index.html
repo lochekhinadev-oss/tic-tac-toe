@@ -21,13 +21,14 @@
         <h1 class="headline">Tic-Tac-Toe</h1>
         <p class="subtitle">Играй в браузере против компьютера. Ты ходишь крестиками.</p>
 
-        <form class="auth" id="auth-form">
+        <form class="auth" id="auth-form" novalidate>
           <input id="login" autocomplete="username" name="login" placeholder="Логин" required type="text">
           <input id="password" autocomplete="current-password" name="password" placeholder="Пароль" required type="password">
           <div class="actions">
             <button class="secondary" id="signup" type="button">Зарегистрироваться</button>
-            <button class="primary" id="signin" type="submit">Войти</button>
+            <button class="primary" id="signin" type="button">Войти</button>
             <button class="secondary" id="logout" type="button">Выйти</button>
+            <button class="secondary" id="delete-account" type="button">Удалить аккаунт</button>
           </div>
         </form>
 
@@ -59,6 +60,16 @@
         </form>
 
         <div class="games" id="games"></div>
+
+        <section class="leaderboard-panel">
+          <div class="label-row">
+            <span class="label">Лидерборд</span>
+            <span class="label-hint">Top 10</span>
+          </div>
+          <div class="leaderboard" id="leaderboard">
+            <div class="leaderboard-empty">Войди в систему, чтобы увидеть таблицу лидеров.</div>
+          </div>
+        </section>
 
         <p class="footer">
           Frontend работает отдельным сервисом и отправляет ходы в backend API. <a href="/swagger" rel="noopener">Swagger</a>

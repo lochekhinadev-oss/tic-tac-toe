@@ -21,6 +21,7 @@ const (
 	FailedLoadCompleted     = "failed to load completed games"
 	FailedLoadLeaderboard   = "failed to load leaderboard"
 	FailedLoadUser          = "failed to load user"
+	FailedDeleteUser        = "failed to delete user"
 	FailedRefreshAccess     = "failed to refresh access token"
 	FailedRefreshRefresh    = "failed to refresh refresh token"
 	DatabaseNotReady        = "database not ready"

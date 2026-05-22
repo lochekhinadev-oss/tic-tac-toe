@@ -20,9 +20,10 @@ var (
 
 const (
 	saveUserQuery           = "INSERT INTO users (uuid, login, password) VALUES ($1, $2, $3)"
-	getUserByLoginQuery     = "SELECT uuid, login, password FROM users WHERE login = $1"
-	getUserByUUIDQuery      = "SELECT uuid, login, password FROM users WHERE uuid = $1"
-	updateUserPasswordQuery = "UPDATE users SET password = $2 WHERE uuid = $1"
+	getUserByLoginQuery     = "SELECT uuid, login, password FROM users WHERE login = $1 AND deleted_at IS NULL"
+	getUserByUUIDQuery      = "SELECT uuid, login, password FROM users WHERE uuid = $1 AND deleted_at IS NULL"
+	updateUserPasswordQuery = "UPDATE users SET password = $2 WHERE uuid = $1 AND deleted_at IS NULL"
+	deleteUserQuery         = "UPDATE users SET deleted_at = NOW() WHERE uuid = $1 AND deleted_at IS NULL"
 )
 
 type PostgresUserRepository struct {
@@ -119,7 +120,7 @@ func (r *PostgresUserRepository) GetUserByUUID(ctx context.Context, uuid string)
 
 func (r *PostgresUserRepository) UpdateUserPassword(ctx context.Context, uuid string, password string) error {
 	logRepository("update user password uuid=%q", uuid)
-	_, err := r.db.Exec(
+	result, err := r.db.Exec(
 		ctx,
 		updateUserPasswordQuery,
 		uuid,
@@ -129,7 +130,26 @@ func (r *PostgresUserRepository) UpdateUserPassword(ctx context.Context, uuid st
 		logRepository("update user password failed uuid=%q: %v", uuid, err)
 		return err
 	}
+	if result.RowsAffected() == 0 {
+		logRepository("update user password not found uuid=%q", uuid)
+		return ErrUserNotFound
+	}
 	logRepository("update user password ok uuid=%q", uuid)
+	return nil
+}
+
+func (r *PostgresUserRepository) DeleteUser(ctx context.Context, uuid string) error {
+	logRepository("delete user uuid=%q", uuid)
+	result, err := r.db.Exec(ctx, deleteUserQuery, uuid)
+	if err != nil {
+		logRepository("delete user failed uuid=%q: %v", uuid, err)
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		logRepository("delete user not found uuid=%q", uuid)
+		return ErrUserNotFound
+	}
+	logRepository("delete user ok uuid=%q", uuid)
 	return nil
 }
 
