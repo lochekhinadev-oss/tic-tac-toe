@@ -275,10 +275,6 @@ function playerSymbol() {
   return USER;
 }
 
-function playerLabel() {
-  return playerSymbol() === COMPUTER ? "O" : "X";
-}
-
 async function api(path, options = {}) {
   const headers = Object.assign({}, options.headers || {});
   if (options.skipAuth !== true && authHeader) {
@@ -552,20 +548,6 @@ async function loadGames() {
     row.appendChild(button);
     gamesNode.appendChild(row);
   });
-}
-
-async function restoreGame(uuid) {
-  if (!uuid) {
-    return;
-  }
-
-  try {
-    const game = await api("/games/" + encodeURIComponent(uuid), { method: "GET" });
-    syncState(game);
-  } catch (error) {
-    localStorage.removeItem(storageKeys.gameID);
-    updateStatus(error.message || "failed to restore match.");
-  }
 }
 
 async function refreshCurrentGame() {

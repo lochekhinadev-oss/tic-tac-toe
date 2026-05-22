@@ -248,10 +248,6 @@ body.modal-open {
   grid-template-columns: 1fr;
 }
 
-.button-grid--quiet {
-  grid-template-columns: 1fr;
-}
-
 .button-stack {
   grid-template-columns: 1fr;
 }
@@ -280,8 +276,7 @@ body.modal-open {
   box-shadow: 0 16px 30px rgba(255, 79, 154, 0.24);
 }
 
-.auth-card .button-grid--primary button,
-.auth-card .button-grid--quiet button {
+.auth-card button {
   width: 100%;
 }
 
@@ -321,11 +316,6 @@ input:focus-visible {
   margin-bottom: 6px;
 }
 
-.value {
-  font-size: 1rem;
-  word-break: break-word;
-}
-
 .players-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -360,20 +350,6 @@ input:focus-visible {
   font-weight: 800;
   line-height: 1;
   color: var(--accent);
-}
-
-.actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.actions button {
-  flex: 1 1 140px;
-}
-
-.actions button:disabled {
-  opacity: 0.72;
 }
 
 .games {
@@ -967,9 +943,7 @@ button:disabled {
   }
 
   .join-row,
-  .leaderboard-item,
-  .button-grid--primary,
-  .button-grid--quiet {
+  .leaderboard-item {
     grid-template-columns: 1fr;
   }
 
@@ -984,11 +958,6 @@ button:disabled {
   .board {
     width: min(100%, 360px);
     gap: 10px;
-  }
-
-  .button-grid--primary,
-  .button-grid--quiet {
-    grid-template-columns: 1fr;
   }
 
   .headline {
