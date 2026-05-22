@@ -18,17 +18,24 @@
       </section>
 
       <aside class="sidebar">
-        <h1 class="headline">Tic-Tac-Toe</h1>
-        <p class="subtitle">Играй в браузере против компьютера. Ты ходишь крестиками.</p>
+        <section class="sidebar-hero">
+          <h1 class="headline">Tic-Tac-Toe</h1>
+          <p class="subtitle">Cozy browser game launcher with soft pink vibes and a tiny cat desk aesthetic.</p>
+        </section>
 
-        <form class="auth" id="auth-form" novalidate>
+        <form class="auth auth-card" id="auth-form" novalidate>
+          <div class="card-heading">
+            <span class="label">Аккаунт</span>
+            <span class="label-hint">soft access</span>
+          </div>
           <input id="login" autocomplete="username" name="login" placeholder="Логин" required type="text">
           <input id="password" autocomplete="current-password" name="password" placeholder="Пароль" required type="password">
-          <div class="actions">
+          <div class="button-grid button-grid--primary">
             <button class="secondary" id="signup" type="button">Зарегистрироваться</button>
             <button class="primary" id="signin" type="button">Войти</button>
+          </div>
+          <div class="button-grid button-grid--quiet">
             <button class="secondary" id="logout" type="button">Выйти</button>
-            <button class="secondary" id="delete-account" type="button">Удалить аккаунт</button>
           </div>
         </form>
 
@@ -46,13 +53,22 @@
           </div>
         </div>
 
-        <div class="actions">
-          <button class="primary" id="new-game" type="button">Играть с компьютером</button>
-          <button class="secondary" id="new-player-game" type="button">Создать PvP</button>
-        </div>
+        <section class="control-card">
+          <div class="card-heading">
+            <span class="label">Игра</span>
+            <span class="label-hint">quick start</span>
+          </div>
+          <div class="button-stack">
+            <button class="primary button-wide" id="new-game" type="button">Играть с компьютером</button>
+            <button class="secondary button-wide" id="new-player-game" type="button">Создать PvP</button>
+          </div>
+        </section>
 
-        <form class="join-form" id="join-form">
-          <label class="label" for="join-game-id">Присоединиться по ID</label>
+        <form class="join-form control-card" id="join-form">
+          <div class="card-heading">
+            <span class="label">Присоединиться</span>
+            <span class="label-hint">by session id</span>
+          </div>
           <div class="join-row">
             <input id="join-game-id" name="join-game-id" placeholder="UUID игровой сессии" type="text">
             <button class="secondary" type="submit">Войти</button>
@@ -71,17 +87,53 @@
           </div>
         </section>
 
+        <section class="danger-zone">
+          <div class="card-heading">
+            <span class="label">Опасная зона</span>
+            <span class="label-hint">careful</span>
+          </div>
+          <p class="danger-copy">Удаление аккаунта необратимо. Эта кнопка специально убрана подальше от обычных действий.</p>
+          <button class="danger-button" id="delete-account" type="button">Удалить аккаунт</button>
+        </section>
+
         <p class="footer">
           Frontend работает отдельным сервисом и отправляет ходы в backend API. <a href="/swagger" rel="noopener">Swagger</a>
         </p>
       </aside>
 
       <aside class="status-panel">
-        <span class="label">Статус</span>
-        <div class="status" id="status">Нажми на клетку, чтобы сделать первый ход.</div>
+        <div class="terminal-window">
+          <div class="terminal-bar" aria-hidden="true">
+            <div class="terminal-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="terminal-title">status log</div>
+          </div>
+          <div class="terminal-body" id="status" aria-live="polite">> awaiting game start...</div>
+        </div>
       </aside>
     </section>
   </main>
+
+  <div class="modal" id="delete-confirm-modal" hidden>
+    <div class="modal-backdrop" data-delete-cancel></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+      <div class="modal-head">
+        <div class="modal-icon" aria-hidden="true">🐾</div>
+        <div>
+          <div class="modal-title" id="delete-confirm-title">Вы уверены?</div>
+          <div class="modal-subtitle">Это действие нельзя отменить.</div>
+        </div>
+      </div>
+      <p class="modal-copy">Аккаунт будет удалён по текущей серверной политике. Если ты не уверена, лучше отменить сейчас.</p>
+      <div class="modal-actions">
+        <button class="secondary" type="button" data-delete-cancel>Отмена</button>
+        <button class="danger-button danger-button--modal" id="delete-confirm-yes" type="button">Удалить аккаунт</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

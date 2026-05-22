@@ -16,6 +16,9 @@ const signinButton = document.getElementById("signin");
 const signupButton = document.getElementById("signup");
 const logoutButton = document.getElementById("logout");
 const deleteAccountButton = document.getElementById("delete-account");
+const deleteConfirmModal = document.getElementById("delete-confirm-modal");
+const deleteConfirmYesButton = document.getElementById("delete-confirm-yes");
+const deleteConfirmCancelButtons = document.querySelectorAll("[data-delete-cancel]");
 const loginInput = document.getElementById("login");
 const passwordInput = document.getElementById("password");
 const youSymbolNode = document.getElementById("you-symbol");
@@ -37,6 +40,8 @@ let board = createEmptyBoard();
 let currentGame = null;
 let busy = false;
 let finished = false;
+let deleteConfirmResolver = null;
+let deleteConfirmPreviousFocus = null;
 
 function createEmptyBoard() {
   return Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(EMPTY));
@@ -48,25 +53,63 @@ function cloneBoard(source) {
 
 function symbolForCell(value) {
   if (value === USER) {
-    return "X";
+    return "🐾";
   }
 
   if (value === COMPUTER) {
-    return "O";
+    return "○";
   }
 
   return "";
 }
 
+function winningCellsForBoard(sourceBoard) {
+  const lines = [
+    [
+      [0, 0], [0, 1], [0, 2]
+    ],
+    [
+      [1, 0], [1, 1], [1, 2]
+    ],
+    [
+      [2, 0], [2, 1], [2, 2]
+    ],
+    [
+      [0, 0], [1, 0], [2, 0]
+    ],
+    [
+      [0, 1], [1, 1], [2, 1]
+    ],
+    [
+      [0, 2], [1, 2], [2, 2]
+    ],
+    [
+      [0, 0], [1, 1], [2, 2]
+    ],
+    [
+      [0, 2], [1, 1], [2, 0]
+    ]
+  ];
+
+  for (const line of lines) {
+    const [[r1, c1], [r2, c2], [r3, c3]] = line;
+    const value = sourceBoard[r1][c1];
+    if (value !== EMPTY && value === sourceBoard[r2][c2] && value === sourceBoard[r3][c3]) {
+      return line;
+    }
+  }
+
+  return [];
+}
+
 function updateStatus(message) {
-  statusNode.textContent = message;
+  const text = String(message || "").trim();
+  statusNode.textContent = text.startsWith(">") ? text : `> ${text}`;
 }
 
 function updateUser() {
-  const user = playerLabel();
-  const computer = user === "X" ? "O" : "X";
-  youSymbolNode.textContent = user;
-  computerSymbolNode.textContent = computer;
+  youSymbolNode.textContent = "🐾";
+  computerSymbolNode.textContent = "○";
 }
 
 function updateSession() {
@@ -173,10 +216,51 @@ function clearAuthState(message) {
   clearStoredSession();
   clearGameState();
   gamesNode.innerHTML = "";
-  renderLeaderboardEmpty("Войди в систему, чтобы увидеть таблицу лидеров.");
+  renderLeaderboardEmpty("sign in to unlock the leaderboard.");
   updateUser();
   updateAuthControls();
-  updateStatus(message || "Войди, чтобы продолжить.");
+  updateStatus(message || "awaiting login...");
+}
+
+function openDeleteConfirm() {
+  if (!deleteConfirmModal) {
+    return Promise.resolve(false);
+  }
+
+  deleteConfirmPreviousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  deleteConfirmModal.hidden = false;
+  document.body.classList.add("modal-open");
+
+  if (deleteConfirmYesButton) {
+    deleteConfirmYesButton.focus();
+  }
+
+  return new Promise((resolve) => {
+    deleteConfirmResolver = resolve;
+  });
+}
+
+function closeDeleteConfirm(result) {
+  if (!deleteConfirmModal || !deleteConfirmResolver) {
+    return;
+  }
+
+  const resolve = deleteConfirmResolver;
+  deleteConfirmResolver = null;
+  deleteConfirmModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  resolve(result);
+
+  if (deleteConfirmPreviousFocus instanceof HTMLElement) {
+    deleteConfirmPreviousFocus.focus();
+  }
+
+  deleteConfirmPreviousFocus = null;
+}
+
+function cancelDeleteConfirm() {
+  closeDeleteConfirm(false);
+  updateStatus("deletion cancelled.");
 }
 
 async function readResponsePayload(response) {
@@ -211,8 +295,8 @@ async function api(path, options = {}) {
       await refreshAccessToken();
       return api(path, Object.assign({}, options, { retryAuth: false }));
     } catch (error) {
-      clearAuthState(error.message || "Сессия истекла. Войди снова.");
-      throw new Error(error.message || "Сессия истекла. Войди снова.");
+      clearAuthState(error.message || "session expired. sign in again.");
+      throw new Error(error.message || "session expired. sign in again.");
     }
   }
   if (!response.ok) {
@@ -223,7 +307,7 @@ async function api(path, options = {}) {
 
 async function refreshAccessToken() {
   if (!refreshToken) {
-    throw new Error("Сессия истекла. Войди снова.");
+    throw new Error("session expired. sign in again.");
   }
 
   const tokens = await api("/auth/refresh/access", {
@@ -239,7 +323,7 @@ async function refreshAccessToken() {
 
 async function loadLeaderboard() {
   if (!authHeader) {
-    renderLeaderboardEmpty("Войди в систему, чтобы увидеть таблицу лидеров.");
+    renderLeaderboardEmpty("sign in to unlock the leaderboard.");
     return;
   }
 
@@ -262,7 +346,7 @@ async function signUp() {
     method: "POST",
     body: JSON.stringify(data)
   });
-  updateStatus("Пользователь зарегистрирован. Теперь войди.");
+  updateStatus("account created. please sign in.");
 }
 
 async function signIn(event = null) {
@@ -280,15 +364,7 @@ async function signIn(event = null) {
   const user = await api("/users/me");
   userUUID = user.uuid;
   updateUser();
-
-  const storedGameID = localStorage.getItem(storageKeys.gameID);
-  if (storedGameID) {
-    await restoreGame(storedGameID);
-    await loadLeaderboard();
-    return;
-  } else {
-    await startNewGame();
-  }
+  await startNewGame();
 }
 
 function syncState(game) {
@@ -301,28 +377,29 @@ function syncState(game) {
 
   if (game.state === "player_wins") {
     finished = true;
-    updateStatus(game.winner_uuid === userUUID ? "Ты победила." : "Победил соперник.");
+    updateStatus(game.winner_uuid === userUUID ? "victory detected ✨" : "opponent won the match.");
     return;
   }
 
   if (game.state === "draw") {
     finished = true;
-    updateStatus("Ничья.");
+    updateStatus("draw detected. paws at peace.");
     return;
   }
 
   if (game.state === "waiting_players") {
     finished = false;
-    updateStatus("Ожидание второго игрока.");
+    updateStatus("waiting for second player...");
     return;
   }
 
   finished = false;
-  updateStatus(game.next_player_uuid === userUUID ? "Твой ход." : "Ход соперника.");
+  updateStatus(game.next_player_uuid === userUUID ? "your turn" : "opponent turn");
 }
 
 function renderBoard() {
   boardNode.innerHTML = "";
+  const winningCells = currentGame && currentGame.state === "player_wins" ? winningCellsForBoard(board) : [];
 
   for (let row = 0; row < BOARD_SIZE; row += 1) {
     for (let col = 0; col < BOARD_SIZE; col += 1) {
@@ -340,8 +417,16 @@ function renderBoard() {
         button.classList.add("computer");
       }
 
-      const isUserTurn = currentGame && currentGame.next_player_uuid === userUUID;
-      button.disabled = busy || finished || !authHeader || !isUserTurn || value !== EMPTY;
+      if (value !== EMPTY) {
+        button.classList.add("cell--filled");
+      }
+
+      if (winningCells.some(([winRow, winCol]) => winRow === row && winCol === col)) {
+        button.classList.add("cell--win");
+      }
+
+      button.disabled = busy || finished || !authHeader || value !== EMPTY;
+      button.setAttribute("aria-label", `Клетка ${row + 1}-${col + 1}${value ? `: ${symbolForCell(value)}` : ", пустая"}`);
       button.addEventListener("click", () => {
         void makeMove(row, col);
       });
@@ -368,7 +453,7 @@ async function makeMove(row, col) {
 
   busy = true;
   board = nextBoard;
-  updateStatus(currentGame.mode === "computer" ? "Компьютер думает..." : "Отправляю ход...");
+  updateStatus(currentGame.mode === "computer" ? "computer thinking..." : "sending move...");
   renderBoard();
 
   try {
@@ -385,7 +470,7 @@ async function makeMove(row, col) {
     }
   } catch (error) {
     board = previousBoard;
-    updateStatus(error.message || "Не удалось выполнить ход.");
+    updateStatus(error.message || "move failed.");
   } finally {
     busy = false;
     renderBoard();
@@ -406,7 +491,7 @@ async function createGame(mode) {
     board = createEmptyBoard();
     currentGame = null;
     finished = false;
-    updateStatus("Зарегистрируйся или войди, чтобы начать игру.");
+    updateStatus("sign in to start a match.");
     renderBoard();
     return;
   }
@@ -425,7 +510,7 @@ async function createGame(mode) {
     board = createEmptyBoard();
     currentGame = null;
     finished = false;
-    updateStatus(error.message || "Не удалось создать игру.");
+    updateStatus(error.message || "failed to create match.");
   } finally {
     busy = false;
     renderBoard();
@@ -479,7 +564,7 @@ async function restoreGame(uuid) {
     syncState(game);
   } catch (error) {
     localStorage.removeItem(storageKeys.gameID);
-    updateStatus(error.message || "Не удалось восстановить игру.");
+    updateStatus(error.message || "failed to restore match.");
   }
 }
 
@@ -495,7 +580,7 @@ async function refreshCurrentGame() {
       await loadLeaderboard();
     }
   } catch (error) {
-    updateStatus(error.message || "Не удалось обновить игру.");
+    updateStatus(error.message || "failed to refresh match.");
   } finally {
     renderBoard();
   }
@@ -504,7 +589,7 @@ async function refreshCurrentGame() {
 async function restoreSession() {
   const storedRefreshToken = localStorage.getItem(storageKeys.refreshToken);
   if (!storedRefreshToken) {
-    clearAuthState("Войди, чтобы продолжить.");
+    clearAuthState("awaiting login...");
     return false;
   }
 
@@ -523,26 +608,22 @@ async function restoreSession() {
     userUUID = user.uuid;
     updateUser();
 
-    const storedGameID = localStorage.getItem(storageKeys.gameID);
-    if (storedGameID) {
-      await restoreGame(storedGameID);
-    } else {
-      clearGameState();
-      updateStatus("Сессия восстановлена.");
-    }
+    clearGameState();
+    updateStatus("session restored.");
 
     await loadGames();
     await loadLeaderboard();
+    await startNewGame();
     return true;
   } catch (error) {
-    clearAuthState("Сессия истекла. Войди снова.");
+    clearAuthState("session expired. sign in again.");
     return false;
   }
 }
 
 async function signOut() {
   if (!refreshToken) {
-    clearAuthState("Вышли из системы.");
+    clearAuthState("signed out.");
     return;
   }
 
@@ -556,13 +637,19 @@ async function signOut() {
   } catch (error) {
     // Clear local state even if the server-side revoke failed or the token is already invalid.
   } finally {
-    clearAuthState("Вышли из системы.");
+    clearAuthState("signed out.");
   }
 }
 
 async function deleteAccount() {
   if (!authHeader) {
-    clearAuthState("Войди, чтобы удалить аккаунт.");
+    clearAuthState("sign in to delete the account.");
+    return;
+  }
+
+  const confirmed = await openDeleteConfirm();
+
+  if (!confirmed) {
     return;
   }
 
@@ -580,7 +667,7 @@ async function deleteAccount() {
     throw error;
   } finally {
     if (deleted) {
-      clearAuthState("Аккаунт удалён.");
+      clearAuthState("account deleted.");
     }
   }
 }
@@ -588,13 +675,13 @@ async function deleteAccount() {
 async function initializeApp() {
   renderBoard();
   updateAuthControls();
-  renderLeaderboardEmpty("Войди в систему, чтобы увидеть таблицу лидеров.");
+  renderLeaderboardEmpty("sign in to unlock the leaderboard.");
   await restoreSession();
 }
 
 async function joinGame(uuid) {
   if (!uuid) {
-    updateStatus("Укажи ID игровой сессии.");
+    updateStatus("enter a session id.");
     return;
   }
 
@@ -607,7 +694,7 @@ async function joinGame(uuid) {
     await loadGames();
     await loadLeaderboard();
   } catch (error) {
-    updateStatus(error.message || "Не удалось присоединиться.");
+    updateStatus(error.message || "failed to join match.");
   } finally {
     busy = false;
     renderBoard();
@@ -615,25 +702,38 @@ async function joinGame(uuid) {
 }
 
 signupButton.addEventListener("click", () => {
-  void signUp().catch((error) => updateStatus(error.message || "Не удалось зарегистрироваться."));
+  void signUp().catch((error) => updateStatus(error.message || "registration failed."));
 });
 signinButton.addEventListener("click", () => {
-  void signIn().catch((error) => updateStatus(error.message || "Не удалось войти."));
+  void signIn().catch((error) => updateStatus(error.message || "sign in failed."));
 });
 authForm.addEventListener("submit", (event) => {
-  void signIn(event).catch((error) => updateStatus(error.message || "Не удалось войти."));
+  void signIn(event).catch((error) => updateStatus(error.message || "sign in failed."));
 });
 logoutButton.addEventListener("click", () => {
   void signOut();
 });
 deleteAccountButton.addEventListener("click", () => {
-  void deleteAccount().catch((error) => updateStatus(error.message || "Не удалось удалить аккаунт."));
+  void deleteAccount().catch((error) => updateStatus(error.message || "account deletion failed."));
+});
+deleteConfirmCancelButtons.forEach((button) => {
+  button.addEventListener("click", cancelDeleteConfirm);
+});
+if (deleteConfirmYesButton) {
+  deleteConfirmYesButton.addEventListener("click", () => {
+    closeDeleteConfirm(true);
+  });
+}
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && deleteConfirmResolver) {
+    cancelDeleteConfirm();
+  }
 });
 newGameButton.addEventListener("click", () => {
   void startNewGame();
 });
 newPlayerGameButton.addEventListener("click", () => {
-  void hostPlayerGame().catch((error) => updateStatus(error.message || "Не удалось создать игру."));
+  void hostPlayerGame().catch((error) => updateStatus(error.message || "failed to create match."));
 });
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();

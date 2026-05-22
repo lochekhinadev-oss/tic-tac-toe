@@ -12,6 +12,11 @@ services:
       - "8080"
     volumes:
       - ./secrets/jwt:/app/secrets/jwt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   seed:
     build:
@@ -38,6 +43,11 @@ services:
     expose:
       - "9091"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9091/healthz >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   db:
     image: postgres:16-alpine
@@ -67,6 +77,11 @@ services:
       dockerfile: frontend/Dockerfile
     expose:
       - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   gateway:
     build:
@@ -77,6 +92,11 @@ services:
       - backend
     ports:
       - "3000:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
 volumes:
   postgres-data:
