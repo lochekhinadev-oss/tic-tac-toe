@@ -28,70 +28,70 @@ func NewAuthorizationService(repository domain.AuthorizationRepository) *Authori
 }
 
 func (s *AuthorizationService) GrantDefaultRole(ctx context.Context, userUUID googleuuid.UUID) error {
-	logApplication("grant default role user_uuid=%q", userUUID)
+	logApplication("grant default role", "user_uuid", userUUID, "role", domain.DefaultPlayerRole)
 	if err := s.GrantRoleToUser(ctx, userUUID, domain.DefaultPlayerRole); err != nil {
-		logApplication("grant default role failed user_uuid=%q: %v", userUUID, err)
+		logApplication("grant default role failed", "user_uuid", userUUID, "role", domain.DefaultPlayerRole, "error", err)
 		return err
 	}
-	logApplication("grant default role ok user_uuid=%q role=%q", userUUID, domain.DefaultPlayerRole)
+	logApplication("grant default role ok", "user_uuid", userUUID, "role", domain.DefaultPlayerRole)
 	return nil
 }
 
 func (s *AuthorizationService) GrantRoleToUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error {
-	logApplication("grant role user_uuid=%q role=%q", userUUID, roleName)
+	logApplication("grant role", "user_uuid", userUUID, "role", roleName)
 	if err := s.repository.AssignRoleToUser(ctx, userUUID, roleName); err != nil {
-		logApplication("grant role failed user_uuid=%q role=%q: %v", userUUID, roleName, err)
+		logApplication("grant role failed", "user_uuid", userUUID, "role", roleName, "error", err)
 		return err
 	}
 	s.invalidatePrincipalCache(userUUID)
-	logApplication("grant role ok user_uuid=%q role=%q", userUUID, roleName)
+	logApplication("grant role ok", "user_uuid", userUUID, "role", roleName)
 	return nil
 }
 
 func (s *AuthorizationService) RevokeRoleFromUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error {
-	logApplication("revoke role user_uuid=%q role=%q", userUUID, roleName)
+	logApplication("revoke role", "user_uuid", userUUID, "role", roleName)
 	if err := s.repository.RevokeRoleFromUser(ctx, userUUID, roleName); err != nil {
-		logApplication("revoke role failed user_uuid=%q role=%q: %v", userUUID, roleName, err)
+		logApplication("revoke role failed", "user_uuid", userUUID, "role", roleName, "error", err)
 		return err
 	}
 	s.invalidatePrincipalCache(userUUID)
-	logApplication("revoke role ok user_uuid=%q role=%q", userUUID, roleName)
+	logApplication("revoke role ok", "user_uuid", userUUID, "role", roleName)
 	return nil
 }
 
 func (s *AuthorizationService) LoadPrincipal(ctx context.Context, userUUID googleuuid.UUID) (domain.Principal, error) {
-	logApplication("load principal user_uuid=%q", userUUID)
+	logApplication("load principal", "user_uuid", userUUID)
 	if principal, ok, err := s.cachedPrincipal(ctx, userUUID); err != nil {
-		logApplication("load principal cache check failed user_uuid=%q: %v", userUUID, err)
+		logApplication("load principal cache check failed", "user_uuid", userUUID, "error", err)
 		return domain.Principal{}, err
 	} else if ok {
-		logApplication("load principal cache hit user_uuid=%q version=%d roles=%d permissions=%d", userUUID, principal.AuthzVersion, len(principal.Roles), len(principal.Permissions))
+		logApplication("load principal cache hit", "user_uuid", userUUID, "version", principal.AuthzVersion, "roles", len(principal.Roles), "permissions", len(principal.Permissions))
 		return principal, nil
 	}
 
 	principal, err := s.repository.LoadPrincipal(ctx, userUUID)
 	if err != nil {
-		logApplication("load principal failed user_uuid=%q: %v", userUUID, err)
+		logApplication("load principal failed", "user_uuid", userUUID, "error", err)
 		return domain.Principal{}, err
 	}
 	s.storePrincipalCache(principal)
-	logApplication("load principal ok user_uuid=%q version=%d roles=%d permissions=%d", userUUID, principal.AuthzVersion, len(principal.Roles), len(principal.Permissions))
+	logApplication("load principal ok", "user_uuid", userUUID, "version", principal.AuthzVersion, "roles", len(principal.Roles), "permissions", len(principal.Permissions))
 	return principal, nil
 }
 
 func (s *AuthorizationService) Can(ctx context.Context, userUUID googleuuid.UUID, permission domain.Permission) (bool, error) {
-	logApplication("authorize user_uuid=%q resource=%q action=%q", userUUID, permission.Resource, permission.Action)
+	logApplication("authorize", "user_uuid", userUUID, "resource", permission.Resource, "action", permission.Action)
 	principal, err := s.LoadPrincipal(ctx, userUUID)
 	if err != nil {
 		return false, err
 	}
 	for _, granted := range principal.Permissions {
 		if granted == permission {
-			logApplication("authorize ok user_uuid=%q resource=%q action=%q", userUUID, permission.Resource, permission.Action)
+			logApplication("authorize ok", "user_uuid", userUUID, "resource", permission.Resource, "action", permission.Action)
 			return true, nil
 		}
 	}
-	logApplication("authorize denied user_uuid=%q resource=%q action=%q", userUUID, permission.Resource, permission.Action)
+	logApplication("authorize denied", "user_uuid", userUUID, "resource", permission.Resource, "action", permission.Action)
 	return false, nil
 }
 

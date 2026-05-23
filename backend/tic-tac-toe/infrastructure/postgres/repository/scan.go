@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,15 +13,16 @@ import (
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/postgres/datasource"
 	"tic-tac-toe/infrastructure/postgres/mapper"
-	_ "tic-tac-toe/internal/logging"
+	observability "tic-tac-toe/internal/logging"
 )
 
 const repositoryLogPrefix = "[infrastructure/postgres/repository]"
 
 var ErrInvalidDatabaseRow = errors.New("invalid database row")
 
-func logRepository(format string, args ...any) {
-	log.Printf(repositoryLogPrefix+" "+format, args...)
+func logRepository(action string, args ...any) {
+	fields := append(observability.Fields(), args...)
+	slog.Info(repositoryLogPrefix+" "+action, fields...)
 }
 
 func requiredString(field string, value sql.NullString) (string, error) {
@@ -57,14 +58,14 @@ func scanGames(rows pgx.Rows, operation string) ([]domain.Game, error) {
 	for rows.Next() {
 		game, err := scanGameRow(rows)
 		if err != nil {
-			logRepository("%s scan failed: %v", operation, err)
+			logRepository("scan failed", "operation", operation, "error", err)
 			return nil, err
 		}
 		games = append(games, game)
 	}
 
 	if err := rows.Err(); err != nil {
-		logRepository("%s rows error: %v", operation, err)
+		logRepository("rows error", "operation", operation, "error", err)
 		return nil, err
 	}
 
@@ -135,7 +136,7 @@ func buildDatasourceGame(uuid sql.NullString, rawField []byte, mode sql.NullStri
 
 	var field datasource.Field
 	if err := json.Unmarshal(rawField, &field); err != nil {
-		logRepository("game unmarshal failed uuid=%q: %v", gameUUID, err)
+		logRepository("game unmarshal failed", "uuid", gameUUID, "error", err)
 		return datasource.Game{}, err
 	}
 	if err := validateDatasourceField(field); err != nil {
@@ -179,19 +180,19 @@ func scanTopPlayers(rows pgx.Rows, operation string) ([]domain.WonGameInfo, erro
 		var login sql.NullString
 		var winRatio sql.NullFloat64
 		if err := rows.Scan(&userUUID, &login, &winRatio); err != nil {
-			logRepository("%s scan failed: %v", operation, err)
+			logRepository("scan failed", "operation", operation, "error", err)
 			return nil, err
 		}
 		player, err := buildWonGameInfo(userUUID, login, winRatio)
 		if err != nil {
-			logRepository("%s invalid row: %v", operation, err)
+			logRepository("invalid row", "operation", operation, "error", err)
 			return nil, err
 		}
 		players = append(players, player)
 	}
 
 	if err := rows.Err(); err != nil {
-		logRepository("%s rows error: %v", operation, err)
+		logRepository("rows error", "operation", operation, "error", err)
 		return nil, err
 	}
 

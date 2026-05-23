@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"tic-tac-toe/infrastructure/postgres/datasource"
-	"tic-tac-toe/internal/logging"
+	observability "tic-tac-toe/internal/logging"
 )
 
 var ErrSessionNotFound = errors.New("auth session not found")
@@ -73,19 +74,19 @@ func (r *PostgresAuthSessionRepository) CreateSession(ctx context.Context, sessi
 	}
 
 	args := []any{session.RefreshJTIHash, session.UserUUID, session.CreatedAt, session.ExpiresAt, session.LastUsedAt}
-	logAuthSession("create auth session", "user=%q", session.UserUUID)
+	logAuthSession("create auth session", "user_uuid", session.UserUUID)
 	_, err := r.db.Exec(ctx, createAuthSessionQuery, args...)
 	if err != nil {
-		logAuthSession("create auth session failed", "user=%q: %v", session.UserUUID, err)
+		logAuthSession("create auth session failed", "user_uuid", session.UserUUID, "error", err)
 		return err
 	}
 
-	logAuthSession("create auth session ok", "user=%q", session.UserUUID)
+	logAuthSession("create auth session ok", "user_uuid", session.UserUUID)
 	return nil
 }
 
 func (r *PostgresAuthSessionRepository) FindActiveSessionByRefreshJTIHash(ctx context.Context, refreshJTIHash string) (RefreshSession, error) {
-	logAuthSession("find auth session", "by_refresh_hash=true")
+	logAuthSession("find auth session")
 
 	var scannedRefreshJTIHash sql.NullString
 	var scannedUserUUID sql.NullString
@@ -100,57 +101,58 @@ func (r *PostgresAuthSessionRepository) FindActiveSessionByRefreshJTIHash(ctx co
 		&lastUsedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		logAuthSession("find auth session not found", "by_refresh_hash=true")
+		logAuthSession("find auth session not found")
 		return RefreshSession{}, ErrSessionNotFound
 	}
 	if err != nil {
-		logAuthSession("find auth session failed", "%v", err)
+		logAuthSession("find auth session failed", "error", err)
 		return RefreshSession{}, err
 	}
 
 	session, err := buildRefreshSession(scannedRefreshJTIHash, scannedUserUUID, createdAt, expiresAt, lastUsedAt)
 	if err != nil {
-		logAuthSession("find auth session invalid row", "%v", err)
+		logAuthSession("find auth session invalid row", "error", err)
 		return RefreshSession{}, err
 	}
 
-	logAuthSession("find auth session ok", "user=%q", session.UserUUID)
+	logAuthSession("find auth session ok", "user_uuid", session.UserUUID)
 	return session, nil
 }
 
 func (r *PostgresAuthSessionRepository) RevokeSession(ctx context.Context, refreshJTIHash string) error {
-	logAuthSession("revoke auth session", "by_refresh_hash=true")
+	logAuthSession("revoke auth session")
 
 	result, err := r.db.Exec(ctx, revokeAuthSessionQuery, refreshJTIHash)
 	if err != nil {
-		logAuthSession("revoke auth session failed", "%v", err)
+		logAuthSession("revoke auth session failed", "error", err)
 		return err
 	}
 	if result.RowsAffected() == 0 {
-		logAuthSession("revoke auth session not found", "by_refresh_hash=true")
+		logAuthSession("revoke auth session not found")
 		return ErrSessionNotFound
 	}
 
-	logAuthSession("revoke auth session ok", "by_refresh_hash=true")
+	logAuthSession("revoke auth session ok")
 	return nil
 }
 
 func (r *PostgresAuthSessionRepository) RevokeSessionsByUserUUID(ctx context.Context, userUUID string) (int64, error) {
-	logAuthSession("revoke auth sessions", "user=%q", userUUID)
+	logAuthSession("revoke auth sessions", "user_uuid", userUUID)
 
 	result, err := r.db.Exec(ctx, revokeAllAuthSessionsQuery, userUUID)
 	if err != nil {
-		logAuthSession("revoke auth sessions failed", "user=%q: %v", userUUID, err)
+		logAuthSession("revoke auth sessions failed", "user_uuid", userUUID, "error", err)
 		return 0, err
 	}
 
 	rows := result.RowsAffected()
-	logAuthSession("revoke auth sessions ok", "user=%q rows=%d", userUUID, rows)
+	logAuthSession("revoke auth sessions ok", "user_uuid", userUUID, "rows", rows)
 	return rows, nil
 }
 
-func logAuthSession(action string, format string, args ...any) {
-	log.Printf(authSessionLogPrefix+" "+action+" "+format, args...)
+func logAuthSession(action string, args ...any) {
+	fields := append(observability.Fields(), args...)
+	slog.Info(authSessionLogPrefix+" "+action, fields...)
 }
 
 func buildRefreshSession(refreshJTIHash sql.NullString, userUUID sql.NullString, createdAt sql.NullTime, expiresAt sql.NullTime, lastUsedAt sql.NullTime) (RefreshSession, error) {

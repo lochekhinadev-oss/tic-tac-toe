@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -103,6 +105,32 @@ func TestAuthHandlerAuthenticate(t *testing.T) {
 			assertAuthResponse(t, rec, testUUID)
 			assertSessionCookie(t, rec)
 		})
+	}
+}
+
+func TestAuthHandlerAuthenticateDoesNotLeakSecrets(t *testing.T) {
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	t.Cleanup(func() {
+		slog.SetDefault(previous)
+	})
+
+	handler := NewAuthHandler(authHandlerServiceStub{
+		signInOK: authservice.SessionResponse{UserUUID: testUUID, SessionID: "session-1"},
+	})
+	rec, req := newAuthRequest(http.MethodPost, "/auth/sessions", `{"login":"player","password":"secret"}`)
+
+	handler.Authenticate(rec, req)
+
+	output := buf.String()
+	for _, secret := range []string{"secret", "session-1", authservice.SessionCookieName} {
+		if strings.Contains(output, secret) {
+			t.Fatalf("auth handler leaked %q: %s", secret, output)
+		}
+	}
+	if !strings.Contains(output, "auth request") || !strings.Contains(output, "auth completed") {
+		t.Fatalf("unexpected log output: %s", output)
 	}
 }
 

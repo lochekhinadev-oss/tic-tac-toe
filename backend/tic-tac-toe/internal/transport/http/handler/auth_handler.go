@@ -256,7 +256,7 @@ func writeAuthError(w http.ResponseWriter, r *http.Request, logMessage, response
 	if responseMessage == "" {
 		responseMessage = err.Error()
 	}
-	logHandler("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
+	logHandlerError("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
 	write(w, responseMessage)
 	return true
 }

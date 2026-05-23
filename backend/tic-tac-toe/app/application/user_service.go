@@ -22,12 +22,12 @@ func NewUserService(repository domain.UserRepository) domain.UserService {
 }
 
 func (s *UserService) CreateUser(ctx context.Context, user domain.User) error {
-	logApplication("create user login=%q uuid=%q", user.Login, user.UUID)
+	logApplication("create user", "login", user.Login, "uuid", user.UUID)
 
 	if user.UUID == "" {
 		uuid, err := newUserUUID()
 		if err != nil {
-			logApplication("create user failed to generate uuid login=%q: %v", user.Login, err)
+			logApplication("create user failed to generate uuid", "login", user.Login, "error", err)
 			return err
 		}
 		user.UUID = uuid
@@ -35,72 +35,72 @@ func (s *UserService) CreateUser(ctx context.Context, user domain.User) error {
 
 	passwordHash, err := hashPassword(user.Password)
 	if err != nil {
-		logApplication("create user failed to hash password login=%q uuid=%q: %v", user.Login, user.UUID, err)
+		logApplication("create user failed to hash password", "login", user.Login, "uuid", user.UUID, "error", err)
 		return err
 	}
 	user.Password = passwordHash
 
 	if err := s.repository.SaveUser(ctx, user); err != nil {
-		logApplication("create user failed login=%q uuid=%q: %v", user.Login, user.UUID, err)
+		logApplication("create user failed", "login", user.Login, "uuid", user.UUID, "error", err)
 		return err
 	}
 
-	logApplication("create user ok login=%q uuid=%q", user.Login, user.UUID)
+	logApplication("create user ok", "login", user.Login, "uuid", user.UUID)
 	return nil
 }
 
 func (s *UserService) GetUserByLogin(ctx context.Context, login string) (domain.User, error) {
-	logApplication("get user by login login=%q", login)
+	logApplication("get user by login", "login", login)
 	user, err := s.repository.GetUserByLogin(ctx, login)
 	if err != nil {
-		logApplication("get user by login failed login=%q: %v", login, err)
+		logApplication("get user by login failed", "login", login, "error", err)
 		return domain.User{}, err
 	}
-	logApplication("get user by login ok login=%q uuid=%q", login, user.UUID)
+	logApplication("get user by login ok", "login", login, "uuid", user.UUID)
 	return user, nil
 }
 
 func (s *UserService) GetUserByUUID(ctx context.Context, uuid googleuuid.UUID) (domain.User, error) {
-	logApplication("get user by uuid uuid=%q", uuid)
+	logApplication("get user by uuid", "uuid", uuid)
 	user, err := s.repository.GetUserByUUID(ctx, uuid)
 	if err != nil {
-		logApplication("get user by uuid failed uuid=%q: %v", uuid, err)
+		logApplication("get user by uuid failed", "uuid", uuid, "error", err)
 		return domain.User{}, err
 	}
-	logApplication("get user by uuid ok uuid=%q login=%q", uuid, user.Login)
+	logApplication("get user by uuid ok", "uuid", uuid, "login", user.Login)
 	return user, nil
 }
 
 func (s *UserService) UpdatePassword(ctx context.Context, uuid googleuuid.UUID, password string) error {
-	logApplication("update password uuid=%q", uuid)
+	logApplication("update password", "uuid", uuid)
 	hash, err := hashPassword(password)
 	if err != nil {
-		logApplication("update password hash failed uuid=%q: %v", uuid, err)
+		logApplication("update password hash failed", "uuid", uuid, "error", err)
 		return err
 	}
 
 	if err := s.repository.UpdateUserPassword(ctx, uuid, hash); err != nil {
-		logApplication("update password failed uuid=%q: %v", uuid, err)
+		logApplication("update password failed", "uuid", uuid, "error", err)
 		return err
 	}
 
-	logApplication("update password ok uuid=%q", uuid)
+	logApplication("update password ok", "uuid", uuid)
 	return nil
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, uuid googleuuid.UUID) error {
-	logApplication("delete user uuid=%q", uuid)
+	logApplication("delete user", "uuid", uuid)
 	if err := s.repository.DeleteUser(ctx, uuid); err != nil {
-		logApplication("delete user failed uuid=%q: %v", uuid, err)
+		logApplication("delete user failed", "uuid", uuid, "error", err)
 		return err
 	}
 
-	logApplication("delete user ok uuid=%q", uuid)
+	logApplication("delete user ok", "uuid", uuid)
 	return nil
 }
 
 func (s *UserService) VerifyPassword(user domain.User, password string) (bool, bool) {
-	logApplication("verify password uuid=%q login=%q", user.UUID, user.Login)
+	logApplication("verify password", "uuid", user.UUID, "login", user.Login)
 	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) == nil {
 		return true, false
 	}

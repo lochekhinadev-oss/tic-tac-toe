@@ -10,6 +10,7 @@ import (
 
 	"tic-tac-toe/app/application"
 	"tic-tac-toe/infrastructure/auth"
+	"tic-tac-toe/internal/metrics"
 	"tic-tac-toe/internal/transport/http/messages"
 	webresponse "tic-tac-toe/internal/transport/http/response"
 )
@@ -29,12 +30,13 @@ func NewUserAuthenticator(auth TokenAuthenticator, authorizer application.Reques
 
 func (a *UserAuthenticator) Protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.Debug("auth check", "method", r.Method, "path", r.URL.Path)
+		slog.Debug("auth check", requestLogFields(r)...)
 
 		uuid, err := a.authenticateRequest(r)
 		if err != nil {
 			if errors.Is(err, auth.ErrInvalidToken) {
-				slog.Info("auth rejected", "method", r.Method, "path", r.URL.Path, "reason", err)
+				slog.Info("auth rejected", append(requestLogFields(r), "reason", "invalid session")...)
+				metrics.ObserveAuthEvent("auth_rejected")
 				webresponse.WriteUnauthorized(w)
 				return
 			}
@@ -42,6 +44,7 @@ func (a *UserAuthenticator) Protect(next http.Handler) http.Handler {
 			writeAuthMiddlewareError(w, r, "auth failed", err, func(w http.ResponseWriter) {
 				webresponse.WriteInternalError(w, messages.FailedAuthenticateUser)
 			})
+			metrics.ObserveAuthEvent("auth_error")
 			return
 		}
 
@@ -50,6 +53,7 @@ func (a *UserAuthenticator) Protect(next http.Handler) http.Handler {
 			writeAuthMiddlewareError(w, r, "invalid authenticated user uuid", err, func(w http.ResponseWriter) {
 				webresponse.WriteInternalError(w, messages.FailedAuthenticateUser)
 			})
+			metrics.ObserveAuthEvent("auth_error")
 			return
 		}
 
@@ -58,15 +62,18 @@ func (a *UserAuthenticator) Protect(next http.Handler) http.Handler {
 			writeAuthMiddlewareError(w, r, "authz failed", err, func(w http.ResponseWriter) {
 				webresponse.WriteInternalError(w, messages.FailedAuthorizeUser)
 			})
+			metrics.ObserveAuthEvent("authz_error")
 			return
 		}
 		if !allowed {
-			slog.Info("authz rejected", "method", r.Method, "path", r.URL.Path, "user_uuid", uuid, "reason", "request not permitted")
+			slog.Info("authz rejected", append(authLogFields(r, uuid), "reason", "request not permitted")...)
+			metrics.ObserveAuthEvent("authz_rejected")
 			webresponse.WriteForbidden(w)
 			return
 		}
 
-		slog.Debug("auth ok", "method", r.Method, "path", r.URL.Path, "user_uuid", uuid)
+		slog.Debug("auth ok", authLogFields(r, uuid)...)
+		metrics.ObserveAuthEvent("auth_ok")
 		next.ServeHTTP(w, r.WithContext(WithUserUUID(r.Context(), uuid)))
 	})
 }
@@ -87,6 +94,6 @@ func (a *UserAuthenticator) authorizeRequest(r *http.Request, userUUID googleuui
 }
 
 func writeAuthMiddlewareError(w http.ResponseWriter, r *http.Request, logMessage string, err error, write func(http.ResponseWriter)) {
-	slog.Error(logMessage, "method", r.Method, "path", r.URL.Path, "error", err)
+	slog.Error(logMessage, append(requestLogFields(r), "error", err)...)
 	write(w)
 }

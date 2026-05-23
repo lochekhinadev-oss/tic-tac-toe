@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 
 	googleuuid "github.com/google/uuid"
@@ -14,7 +15,6 @@ import (
 	"tic-tac-toe/infrastructure/postgres/datasource"
 	"tic-tac-toe/infrastructure/postgres/mapper"
 	"tic-tac-toe/infrastructure/rediscache"
-	"tic-tac-toe/internal/logging"
 )
 
 var (
@@ -50,21 +50,21 @@ func NewGameRepository(db datasource.Database, leaderboardCache rediscache.Leade
 }
 
 func (r *GameRepository) SaveGame(ctx context.Context, game domain.Game) error {
-	logGameRepository("save game", "uuid=%q state=%s mode=%s", game.UUID, game.State, game.Mode)
+	logGameRepository("save game", "uuid", game.UUID, "state", game.State, "mode", game.Mode)
 	datasourceGame := mapper.ToDatasourceGame(game)
 	if datasourceGame.CreatedAt.IsZero() {
 		datasourceGame.CreatedAt = time.Now().UTC()
 	}
 	field, err := json.Marshal(datasourceGame.Field)
 	if err != nil {
-		logGameRepository("save game marshal failed", "uuid=%q: %v", game.UUID, err)
+		logGameRepository("save game marshal failed", "uuid", game.UUID, "error", err)
 		return err
 	}
 
 	err = r.withTransaction(ctx, func(tx sqlExecutor) error {
 		_, err = tx.Exec(ctx, saveGameQuery, datasourceGame.UUID, field, datasourceGame.Mode, datasourceGame.State, datasourceGame.CreatedAt, datasourceGame.NextPlayerUUID, datasourceGame.WinnerUUID, datasourceGame.PlayerXUUID, datasourceGame.PlayerOUUID)
 		if err != nil {
-			logGameRepository("save game failed", "uuid=%q: %v", game.UUID, err)
+			logGameRepository("save game failed", "uuid", game.UUID, "error", err)
 			return err
 		}
 		return r.applyCompletedGameStats(ctx, tx, game)
@@ -74,24 +74,24 @@ func (r *GameRepository) SaveGame(ctx context.Context, game domain.Game) error {
 	}
 	r.invalidateLeaderboardCacheIfCompleted(ctx, game)
 
-	logGameRepository("save game ok", "uuid=%q", game.UUID)
+	logGameRepository("save game ok", "uuid", game.UUID)
 	return nil
 }
 
 func (r *GameRepository) SaveGameIfUnchanged(ctx context.Context, previous domain.Game, next domain.Game) error {
-	logGameRepository("save game if unchanged", "uuid=%q state=%s mode=%s", next.UUID, next.State, next.Mode)
+	logGameRepository("save game if unchanged", "uuid", next.UUID, "state", next.State, "mode", next.Mode)
 
 	nextGame := mapper.ToDatasourceGame(next)
 	nextField, err := json.Marshal(nextGame.Field)
 	if err != nil {
-		logGameRepository("save game if unchanged marshal next failed", "uuid=%q: %v", next.UUID, err)
+		logGameRepository("save game if unchanged marshal next failed", "uuid", next.UUID, "error", err)
 		return err
 	}
 
 	previousGame := mapper.ToDatasourceGame(previous)
 	previousField, err := json.Marshal(previousGame.Field)
 	if err != nil {
-		logGameRepository("save game if unchanged marshal previous failed", "uuid=%q: %v", previous.UUID, err)
+		logGameRepository("save game if unchanged marshal previous failed", "uuid", previous.UUID, "error", err)
 		return err
 	}
 
@@ -116,11 +116,11 @@ func (r *GameRepository) SaveGameIfUnchanged(ctx context.Context, previous domai
 			previousGame.PlayerOUUID,
 		)
 		if err != nil {
-			logGameRepository("save game if unchanged failed", "uuid=%q: %v", next.UUID, err)
+			logGameRepository("save game if unchanged failed", "uuid", next.UUID, "error", err)
 			return err
 		}
 		if result.RowsAffected() == 0 {
-			logGameRepository("save game if unchanged conflict", "uuid=%q", next.UUID)
+			logGameRepository("save game if unchanged conflict", "uuid", next.UUID)
 			return ErrGameConflict
 		}
 		return r.applyCompletedGameStats(ctx, tx, next)
@@ -130,7 +130,7 @@ func (r *GameRepository) SaveGameIfUnchanged(ctx context.Context, previous domai
 	}
 	r.invalidateLeaderboardCacheIfCompleted(ctx, next)
 
-	logGameRepository("save game if unchanged ok", "uuid=%q", next.UUID)
+	logGameRepository("save game if unchanged ok", "uuid", next.UUID)
 	return nil
 }
 
@@ -169,27 +169,27 @@ func (r *GameRepository) applyCompletedGameStats(ctx context.Context, executor s
 
 	_, err := executor.Exec(ctx, applyCompletedGameStatsQuery, game.UUID, game.PlayerX.String(), game.PlayerO.String(), string(game.State), game.Winner.String())
 	if err != nil {
-		logGameRepository("apply completed game stats failed", "uuid=%q: %v", game.UUID, err)
+		logGameRepository("apply completed game stats failed", "uuid", game.UUID, "error", err)
 		return err
 	}
 
-	logGameRepository("apply completed game stats ok", "uuid=%q", game.UUID)
+	logGameRepository("apply completed game stats ok", "uuid", game.UUID)
 	return nil
 }
 
 func (r *GameRepository) GetGame(ctx context.Context, uuid googleuuid.UUID) (domain.Game, error) {
-	logGameRepository("get game", "uuid=%q", uuid)
+	logGameRepository("get game", "uuid", uuid)
 	game, err := r.queryGame(ctx, getGameQuery, uuid.String())
 	if errors.Is(err, pgx.ErrNoRows) {
-		logGameRepository("get game not found", "uuid=%q", uuid)
+		logGameRepository("get game not found", "uuid", uuid)
 		return domain.Game{}, ErrGameNotFound
 	}
 	if err != nil {
-		logGameRepository("get game failed", "uuid=%q: %v", uuid, err)
+		logGameRepository("get game failed", "uuid", uuid, "error", err)
 		return domain.Game{}, err
 	}
 
-	logGameRepository("get game ok", "uuid=%q state=%s", uuid, game.State)
+	logGameRepository("get game ok", "uuid", uuid, "state", game.State)
 	return game, nil
 }
 
@@ -199,33 +199,33 @@ func (r *GameRepository) ListActiveGames(ctx context.Context) ([]domain.Game, er
 		return nil, err
 	}
 
-	logGameRepository("list active games ok", "count=%d", len(games))
+	logGameRepository("list active games ok", "count", len(games))
 	return games, nil
 }
 
 func (r *GameRepository) ListCompletedGamesByUserUUID(ctx context.Context, userUUID googleuuid.UUID) ([]domain.Game, error) {
-	logGameRepository("list completed games", "user=%q", userUUID)
+	logGameRepository("list completed games", "user_uuid", userUUID)
 	games, err := r.queryGames(ctx, "list completed games", listCompletedGamesByUserUUIDQuery, userUUID.String(), string(domain.GameStatePlayerWins), string(domain.GameStateDraw))
 	if err != nil {
 		return nil, err
 	}
 
-	logGameRepository("list completed games ok", "user=%q count=%d", userUUID, len(games))
+	logGameRepository("list completed games ok", "user_uuid", userUUID, "count", len(games))
 	return games, nil
 }
 
 func (r *GameRepository) ListTopPlayers(ctx context.Context, limit int) ([]domain.WonGameInfo, error) {
-	logGameRepository("list top players", "limit=%d", limit)
+	logGameRepository("list top players", "limit", limit)
 	if players, ok, err := r.cachedTopPlayers(ctx, limit); err != nil {
-		logGameRepository("list top players cache read failed", "limit=%d: %v", limit, err)
+		logGameRepository("list top players cache read failed", "limit", limit, "error", err)
 	} else if ok {
-		logGameRepository("list top players cache hit", "limit=%d count=%d", limit, len(players))
+		logGameRepository("list top players cache hit", "limit", limit, "count", len(players))
 		return players, nil
 	}
 
 	rows, err := r.db.Query(ctx, listTopPlayersQuery, limit)
 	if err != nil {
-		logGameRepository("list top players query failed", "%v", err)
+		logGameRepository("list top players query failed", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -235,9 +235,9 @@ func (r *GameRepository) ListTopPlayers(ctx context.Context, limit int) ([]domai
 		return nil, err
 	}
 	if err := r.cacheTopPlayers(ctx, limit, players); err != nil {
-		logGameRepository("list top players cache write failed", "limit=%d: %v", limit, err)
+		logGameRepository("list top players cache write failed", "limit", limit, "error", err)
 	}
-	logGameRepository("list top players ok", "count=%d", len(players))
+	logGameRepository("list top players ok", "count", len(players))
 	return players, nil
 }
 
@@ -272,7 +272,7 @@ func (r *GameRepository) invalidateLeaderboardCacheIfCompleted(ctx context.Conte
 	}
 
 	if err := r.leaderboardCache.InvalidateLeaderboard(ctx); err != nil {
-		logGameRepository("invalidate leaderboard cache failed", "uuid=%q: %v", game.UUID, err)
+		logGameRepository("invalidate leaderboard cache failed", "uuid", game.UUID, "error", err)
 	}
 }
 
@@ -286,25 +286,25 @@ func cloneTopPlayers(players []domain.WonGameInfo) []domain.WonGameInfo {
 }
 
 func (r *GameRepository) JoinGame(ctx context.Context, uuid googleuuid.UUID, userUUID googleuuid.UUID) (domain.Game, error) {
-	logGameRepository("join game", "uuid=%q user=%q", uuid, userUUID)
+	logGameRepository("join game", "uuid", uuid, "user_uuid", userUUID)
 	game, err := r.queryGame(ctx, joinGameQuery, uuid.String(), userUUID.String(), string(domain.GameStatePlayerToMove), string(domain.GameModePlayer), string(domain.GameStateWaitingPlayers))
 	if errors.Is(err, pgx.ErrNoRows) {
-		logGameRepository("join game not joinable", "uuid=%q user=%q", uuid, userUUID)
+		logGameRepository("join game not joinable", "uuid", uuid, "user_uuid", userUUID)
 		return domain.Game{}, ErrGameNotJoinable
 	}
 	if err != nil {
-		logGameRepository("join game failed", "uuid=%q user=%q: %v", uuid, userUUID, err)
+		logGameRepository("join game failed", "uuid", uuid, "user_uuid", userUUID, "error", err)
 		return domain.Game{}, err
 	}
 
-	logGameRepository("join game ok", "uuid=%q user=%q", uuid, userUUID)
+	logGameRepository("join game ok", "uuid", uuid, "user_uuid", userUUID)
 	return game, nil
 }
 
 func (r *GameRepository) queryGames(ctx context.Context, operation string, query string, args ...any) ([]domain.Game, error) {
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		logGameRepository(operation+" query failed", "%v", err)
+		logGameRepository(operation+" query failed", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -320,6 +320,6 @@ func (r *GameRepository) queryGame(ctx context.Context, query string, args ...an
 	return scanGameRow(r.db.QueryRow(ctx, query, args...))
 }
 
-func logGameRepository(action string, format string, args ...any) {
-	log.Printf(gameRepositoryLogPrefix+" "+action+" "+format, args...)
+func logGameRepository(action string, args ...any) {
+	slog.Info(gameRepositoryLogPrefix+" "+action, args...)
 }

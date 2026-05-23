@@ -3,11 +3,14 @@ package application
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	googleuuid "github.com/google/uuid"
 
 	"tic-tac-toe/app/domain"
+	"tic-tac-toe/internal/testutil"
 )
 
 type userRepositoryStub struct {
@@ -126,5 +129,31 @@ func TestUserServiceErrorsAndLegacyPassword(t *testing.T) {
 	ok, needsUpdate = service.VerifyPassword(domain.User{Password: "different"}, "secret")
 	if ok || needsUpdate {
 		t.Fatalf("expected invalid password, got ok=%v update=%v", ok, needsUpdate)
+	}
+}
+
+func TestUserServiceLogsDoNotLeakPasswords(t *testing.T) {
+	buf := testutil.CaptureSlog(t, slog.LevelInfo)
+
+	repo := &userRepositoryStub{}
+	service := NewUserService(repo)
+
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+	if err := service.CreateUser(context.Background(), domain.User{UUID: userUUID.String(), Login: "player", Password: "secret"}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if _, err := service.GetUserByUUID(context.Background(), userUUID); err != nil {
+		t.Fatalf("get by uuid: %v", err)
+	}
+	if err := service.UpdatePassword(context.Background(), userUUID, "new-secret"); err != nil {
+		t.Fatalf("update password: %v", err)
+	}
+	service.VerifyPassword(domain.User{UUID: userUUID.String(), Login: "player", Password: repo.saved.Password}, "secret")
+
+	output := buf.String()
+	for _, secret := range []string{"secret", "new-secret"} {
+		if strings.Contains(output, secret) {
+			t.Fatalf("user service leaked %q: %s", secret, output)
+		}
 	}
 }

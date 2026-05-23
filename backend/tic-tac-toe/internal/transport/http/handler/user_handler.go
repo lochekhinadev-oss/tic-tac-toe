@@ -125,7 +125,7 @@ func (h *UserHandler) writeUserError(w http.ResponseWriter, r *http.Request, log
 		return false
 	}
 
-	logHandler("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
+	logHandlerError("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
 	webresponse.WriteInternalError(w, responseMessage)
 	return true
 }

@@ -1,14 +1,15 @@
 package auth
 
 import (
-	"log"
+	"log/slog"
 
-	_ "tic-tac-toe/internal/logging"
+	observability "tic-tac-toe/internal/logging"
 )
 
 const authLogPrefix = "[infrastructure/auth]"
 const SessionCookieName = "tic-tac-toe.session"
 
-func logAuth(format string, args ...any) {
-	log.Printf(authLogPrefix+" "+format, args...)
+func logAuth(action string, args ...any) {
+	fields := append(observability.Fields(), args...)
+	slog.Info(authLogPrefix+" "+action, fields...)
 }

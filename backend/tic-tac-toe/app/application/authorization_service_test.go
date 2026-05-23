@@ -3,11 +3,14 @@ package application
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	googleuuid "github.com/google/uuid"
 
 	"tic-tac-toe/app/domain"
+	"tic-tac-toe/internal/testutil"
 )
 
 type authorizationRepositoryStub struct {
@@ -156,5 +159,38 @@ func TestAuthorizationServicePropagatesErrors(t *testing.T) {
 	}
 	if _, err := service.Can(context.Background(), userUUID, domain.Permission{Resource: "games", Action: "create"}); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestAuthorizationServiceLogsDoNotLeakSecrets(t *testing.T) {
+	buf := testutil.CaptureSlog(t, slog.LevelInfo)
+
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+	repo := &authorizationRepositoryStub{
+		version: 1,
+		principal: domain.Principal{
+			UserUUID:     userUUID.String(),
+			AuthzVersion: 1,
+			Roles:        []string{domain.DefaultPlayerRole},
+			Permissions:  []domain.Permission{{Resource: "games", Action: "create"}},
+		},
+	}
+	service := NewAuthorizationService(repo)
+
+	if err := service.GrantDefaultRole(context.Background(), userUUID); err != nil {
+		t.Fatalf("grant default role: %v", err)
+	}
+	if _, err := service.LoadPrincipal(context.Background(), userUUID); err != nil {
+		t.Fatalf("load principal: %v", err)
+	}
+	if _, err := service.Can(context.Background(), userUUID, domain.Permission{Resource: "games", Action: "create"}); err != nil {
+		t.Fatalf("authorize: %v", err)
+	}
+
+	output := buf.String()
+	for _, secret := range []string{"secret", "session-1", "tic-tac-toe.session"} {
+		if strings.Contains(output, secret) {
+			t.Fatalf("authorization service leaked %q: %s", secret, output)
+		}
 	}
 }

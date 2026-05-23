@@ -45,9 +45,9 @@ func NewAuthService(users domain.UserService, authorization domain.Authorization
 
 func (s *service) SignUp(ctx context.Context, request SignUpRequest) (bool, error) {
 	request.Login = strings.TrimSpace(request.Login)
-	logAuth("sign up request login=%q", request.Login)
+	logAuth("sign up request", "login", request.Login)
 	if !validCredentials(request.Login, request.Password) {
-		logAuth("sign up invalid credentials login=%q", request.Login)
+		logAuth("sign up invalid credentials", "login", request.Login)
 		return false, ErrInvalidSignUp
 	}
 
@@ -56,15 +56,15 @@ func (s *service) SignUp(ctx context.Context, request SignUpRequest) (bool, erro
 		Password: request.Password,
 	})
 	if errors.Is(err, repository.ErrLoginAlreadyExists) {
-		logAuth("sign up duplicate login=%q", request.Login)
+		logAuth("sign up duplicate", "login", request.Login)
 		return false, nil
 	}
 	if err != nil {
-		logAuth("sign up failed login=%q: %v", request.Login, err)
+		logAuth("sign up failed", "login", request.Login, "error", err)
 		return false, err
 	}
 
-	logAuth("sign up ok login=%q", request.Login)
+	logAuth("sign up ok", "login", request.Login)
 	return true, nil
 }
 
@@ -79,27 +79,27 @@ func (s *service) SignIn(ctx context.Context, request SessionRequest) (SessionRe
 
 	user, err := s.users.GetUserByLogin(ctx, request.Login)
 	if errors.Is(err, domain.ErrUserNotFound) {
-		logAuth("sign in user not found login=%q", request.Login)
+		logAuth("sign in user not found", "login", request.Login)
 		return SessionResponse{}, ErrInvalidCredentials
 	}
 	if err != nil {
-		logAuth("sign in load user failed login=%q: %v", request.Login, err)
+		logAuth("sign in load user failed", "login", request.Login, "error", err)
 		return SessionResponse{}, err
 	}
 
 	ok, needsUpdate := s.users.VerifyPassword(user, request.Password)
 	if !ok {
-		logAuth("sign in invalid credentials login=%q uuid=%q", request.Login, user.UUID)
+		logAuth("sign in invalid credentials", "login", request.Login, "uuid", user.UUID)
 		return SessionResponse{}, ErrInvalidCredentials
 	}
 	if needsUpdate {
 		userUUID, err := uuid.Parse(user.UUID)
 		if err != nil {
-			logAuth("sign in invalid user uuid=%q: %v", user.UUID, err)
+			logAuth("sign in invalid user uuid", "uuid", user.UUID, "error", err)
 			return SessionResponse{}, ErrInvalidCredentials
 		}
 		if err := s.users.UpdatePassword(ctx, userUUID, request.Password); err != nil {
-			logAuth("sign in password migration failed uuid=%q: %v", user.UUID, err)
+			logAuth("sign in password migration failed", "uuid", user.UUID, "error", err)
 			return SessionResponse{}, err
 		}
 	}
@@ -107,22 +107,22 @@ func (s *service) SignIn(ctx context.Context, request SessionRequest) (SessionRe
 	if s.authorization != nil {
 		userUUID, err := uuid.Parse(user.UUID)
 		if err != nil {
-			logAuth("sign in invalid user uuid=%q: %v", user.UUID, err)
+			logAuth("sign in invalid user uuid", "uuid", user.UUID, "error", err)
 			return SessionResponse{}, ErrInvalidCredentials
 		}
 		if err := s.authorization.GrantDefaultRole(ctx, userUUID); err != nil {
-			logAuth("sign in default role grant failed uuid=%q: %v", user.UUID, err)
+			logAuth("sign in default role grant failed", "uuid", user.UUID, "error", err)
 			return SessionResponse{}, err
 		}
 	}
 
 	session, err := s.issueCookieSession(ctx, user)
 	if err != nil {
-		logAuth("sign in session generation failed uuid=%q: %v", user.UUID, err)
+		logAuth("sign in session generation failed", "uuid", user.UUID, "error", err)
 		return SessionResponse{}, err
 	}
 
-	logAuth("sign in ok login=%q uuid=%q", request.Login, user.UUID)
+	logAuth("sign in ok", "login", request.Login, "uuid", user.UUID)
 	return session, nil
 }
 
@@ -134,17 +134,17 @@ func (s *service) RefreshSession(ctx context.Context, sessionID string) (Session
 	}
 
 	if err := s.sessions.RevokeSession(ctx, session.RefreshJTIHash); err != nil {
-		logAuth("refresh session revoke old failed user=%q: %v", user.UUID, err)
+		logAuth("refresh session revoke old failed", "user_uuid", user.UUID, "error", err)
 		return SessionResponse{}, err
 	}
 
 	refreshed, err := s.issueCookieSession(ctx, user)
 	if err != nil {
-		logAuth("refresh session create new failed user=%q: %v", user.UUID, err)
+		logAuth("refresh session create new failed", "user_uuid", user.UUID, "error", err)
 		return SessionResponse{}, err
 	}
 
-	logAuth("refresh session ok user=%q old_revoked=%t new_created=%t", user.UUID, session.RefreshJTIHash != "", refreshed.SessionID != "")
+	logAuth("refresh session ok", "user_uuid", user.UUID)
 	return refreshed, nil
 }
 
@@ -157,13 +157,13 @@ func (s *service) Logout(ctx context.Context, sessionID string) error {
 	if err := s.sessions.RevokeSession(ctx, session.RefreshJTIHash); err != nil {
 		return err
 	}
-	logAuth("logout session ok user=%q session_revoked=%t", user.UUID, session.RefreshJTIHash != "")
+	logAuth("logout session ok", "user_uuid", user.UUID)
 	return nil
 }
 
 func (s *service) LogoutAll(ctx context.Context, sessionID string) error {
 	logAuth("logout all request")
-	session, user, err := s.activeSessionBySessionID(ctx, sessionID)
+	_, user, err := s.activeSessionBySessionID(ctx, sessionID)
 	if err != nil {
 		return err
 	}
@@ -171,16 +171,16 @@ func (s *service) LogoutAll(ctx context.Context, sessionID string) error {
 	if err != nil {
 		return err
 	}
-	logAuth("logout all sessions ok user=%q session_found=%t revoked=%d", user.UUID, session.RefreshJTIHash != "", rows)
+	logAuth("logout all sessions ok", "user_uuid", user.UUID, "revoked", rows)
 	return nil
 }
 
 func (s *service) AuthenticateSession(ctx context.Context, sessionID string) (string, error) {
-	session, user, err := s.activeSessionBySessionID(ctx, sessionID)
+	_, user, err := s.activeSessionBySessionID(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
-	logAuth("authenticate session ok user=%q session_found=%t", user.UUID, session.RefreshJTIHash != "")
+	logAuth("authenticate session ok", "user_uuid", user.UUID)
 	return user.UUID, nil
 }
 
@@ -223,23 +223,23 @@ func (s *service) activeSessionBySessionID(ctx context.Context, sessionID string
 		return repository.RefreshSession{}, domain.User{}, ErrInvalidToken
 	}
 	if err != nil {
-		logAuth("load session failed: %v", err)
+		logAuth("load session failed", "error", err)
 		return repository.RefreshSession{}, domain.User{}, err
 	}
 
 	userUUID, err := uuid.Parse(session.UserUUID)
 	if err != nil {
-		logAuth("session user uuid invalid session=%q: %v", session.RefreshJTIHash, err)
+		logAuth("session user uuid invalid", "error", err)
 		return repository.RefreshSession{}, domain.User{}, ErrInvalidToken
 	}
 
 	user, err := s.users.GetUserByUUID(ctx, userUUID)
 	if errors.Is(err, domain.ErrUserNotFound) {
-		logAuth("session user missing uuid=%q", session.UserUUID)
+		logAuth("session user missing", "uuid", session.UserUUID)
 		return repository.RefreshSession{}, domain.User{}, ErrInvalidToken
 	}
 	if err != nil {
-		logAuth("load user for session failed uuid=%q: %v", session.UserUUID, err)
+		logAuth("load user for session failed", "uuid", session.UserUUID, "error", err)
 		return repository.RefreshSession{}, domain.User{}, err
 	}
 

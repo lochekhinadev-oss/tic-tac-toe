@@ -12,5 +12,5 @@ func init() {
 }
 
 func Printf(format string, args ...any) {
-	slog.Default().Info(fmt.Sprintf(format, args...))
+	slog.Default().Info(fmt.Sprintf(format, args...), Fields()...)
 }

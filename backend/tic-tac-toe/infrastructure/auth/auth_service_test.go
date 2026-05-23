@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/postgres/repository"
+	"tic-tac-toe/internal/testutil"
 )
 
 func newSessionAuthService(users domain.UserService, authorization domain.AuthorizationService, sessions repository.AuthSessionRepository) *service {
@@ -258,6 +260,38 @@ func TestAuthServiceLogoutAllRevokesAllSessions(t *testing.T) {
 	}
 	if err := auth.LogoutAll(context.Background(), first.SessionID); !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("expected ErrInvalidToken on repeated logout all, got %v", err)
+	}
+}
+
+func TestAuthServiceLogsDoNotLeakSecrets(t *testing.T) {
+	buf := testutil.CaptureSlog(t, slog.LevelInfo)
+
+	hash, err := hashPassword("secret")
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	store := newSessionStoreStub()
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+	auth := newSessionAuthService(&userServiceStub{
+		user: domain.User{UUID: userUUID.String(), Login: "player", Password: hash},
+	}, &authorizationServiceStub{}, store)
+
+	response, err := auth.SignIn(context.Background(), SessionRequest{Login: "player", Password: "secret"})
+	if err != nil {
+		t.Fatalf("sign in: %v", err)
+	}
+	if _, err := auth.RefreshSession(context.Background(), response.SessionID); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if err := auth.Logout(context.Background(), response.SessionID); err != nil && !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("logout: %v", err)
+	}
+
+	output := buf.String()
+	for _, secret := range []string{"secret", "session-1", SessionCookieName} {
+		if strings.Contains(output, secret) {
+			t.Fatalf("auth service leaked %q: %s", secret, output)
+		}
 	}
 }
 

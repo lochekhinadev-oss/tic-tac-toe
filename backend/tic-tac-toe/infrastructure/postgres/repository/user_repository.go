@@ -41,7 +41,7 @@ func NewUserRepository(db datasource.Database) domain.UserRepository {
 }
 
 func (r *PostgresUserRepository) SaveUser(ctx context.Context, user domain.User) error {
-	logRepository("save user uuid=%q login=%q", user.UUID, user.Login)
+	logRepository("save user", "uuid", user.UUID, "login", user.Login)
 	datasourceUser := mapper.ToDatasourceUser(user)
 
 	_, err := r.db.Exec(
@@ -53,20 +53,20 @@ func (r *PostgresUserRepository) SaveUser(ctx context.Context, user domain.User)
 		domain.DefaultPlayerRole,
 	)
 	if isUniqueViolation(err) {
-		logRepository("save user duplicate login=%q: %v", user.Login, err)
+		logRepository("save user duplicate", "login", user.Login, "error", err)
 		return ErrLoginAlreadyExists
 	}
 	if err != nil {
-		logRepository("save user failed uuid=%q login=%q: %v", user.UUID, user.Login, err)
+		logRepository("save user failed", "uuid", user.UUID, "login", user.Login, "error", err)
 		return err
 	}
 
-	logRepository("save user ok uuid=%q login=%q", user.UUID, user.Login)
+	logRepository("save user ok", "uuid", user.UUID, "login", user.Login)
 	return nil
 }
 
 func (r *PostgresUserRepository) GetUserByLogin(ctx context.Context, login string) (domain.User, error) {
-	logRepository("get user by login login=%q", login)
+	logRepository("get user by login", "login", login)
 	var scannedUUID sql.NullString
 	var scannedLogin sql.NullString
 	var scannedPassword sql.NullString
@@ -77,26 +77,26 @@ func (r *PostgresUserRepository) GetUserByLogin(ctx context.Context, login strin
 		login,
 	).Scan(&scannedUUID, &scannedLogin, &scannedPassword)
 	if errors.Is(err, pgx.ErrNoRows) {
-		logRepository("get user by login not found login=%q", login)
+		logRepository("get user by login not found", "login", login)
 		return domain.User{}, ErrUserNotFound
 	}
 	if err != nil {
-		logRepository("get user by login failed login=%q: %v", login, err)
+		logRepository("get user by login failed", "login", login, "error", err)
 		return domain.User{}, err
 	}
 
 	user, err := buildDatasourceUser(scannedUUID, scannedLogin, scannedPassword)
 	if err != nil {
-		logRepository("get user by login invalid row login=%q: %v", login, err)
+		logRepository("get user by login invalid row", "login", login, "error", err)
 		return domain.User{}, err
 	}
 
-	logRepository("get user by login ok login=%q uuid=%q", user.Login, user.UUID)
+	logRepository("get user by login ok", "login", user.Login, "uuid", user.UUID)
 	return mapper.ToDomainUser(user), nil
 }
 
 func (r *PostgresUserRepository) GetUserByUUID(ctx context.Context, uuid googleuuid.UUID) (domain.User, error) {
-	logRepository("get user by uuid uuid=%q", uuid)
+	logRepository("get user by uuid", "uuid", uuid)
 	var scannedUUID sql.NullString
 	var login sql.NullString
 	var password sql.NullString
@@ -107,26 +107,26 @@ func (r *PostgresUserRepository) GetUserByUUID(ctx context.Context, uuid googleu
 		uuid.String(),
 	).Scan(&scannedUUID, &login, &password)
 	if errors.Is(err, pgx.ErrNoRows) {
-		logRepository("get user by uuid not found uuid=%q", uuid)
+		logRepository("get user by uuid not found", "uuid", uuid)
 		return domain.User{}, ErrUserNotFound
 	}
 	if err != nil {
-		logRepository("get user by uuid failed uuid=%q: %v", uuid, err)
+		logRepository("get user by uuid failed", "uuid", uuid, "error", err)
 		return domain.User{}, err
 	}
 
 	user, err := buildDatasourceUser(scannedUUID, login, password)
 	if err != nil {
-		logRepository("get user by uuid invalid row uuid=%q: %v", uuid, err)
+		logRepository("get user by uuid invalid row", "uuid", uuid, "error", err)
 		return domain.User{}, err
 	}
 
-	logRepository("get user by uuid ok uuid=%q login=%q", uuid, user.Login)
+	logRepository("get user by uuid ok", "uuid", uuid, "login", user.Login)
 	return mapper.ToDomainUser(user), nil
 }
 
 func (r *PostgresUserRepository) UpdateUserPassword(ctx context.Context, uuid googleuuid.UUID, password string) error {
-	logRepository("update user password uuid=%q", uuid)
+	logRepository("update user password", "uuid", uuid)
 	result, err := r.db.Exec(
 		ctx,
 		updateUserPasswordQuery,
@@ -134,29 +134,29 @@ func (r *PostgresUserRepository) UpdateUserPassword(ctx context.Context, uuid go
 		password,
 	)
 	if err != nil {
-		logRepository("update user password failed uuid=%q: %v", uuid, err)
+		logRepository("update user password failed", "uuid", uuid, "error", err)
 		return err
 	}
 	if result.RowsAffected() == 0 {
-		logRepository("update user password not found uuid=%q", uuid)
+		logRepository("update user password not found", "uuid", uuid)
 		return ErrUserNotFound
 	}
-	logRepository("update user password ok uuid=%q", uuid)
+	logRepository("update user password ok", "uuid", uuid)
 	return nil
 }
 
 func (r *PostgresUserRepository) DeleteUser(ctx context.Context, uuid googleuuid.UUID) error {
-	logRepository("delete user uuid=%q", uuid)
+	logRepository("delete user", "uuid", uuid)
 	result, err := r.db.Exec(ctx, deleteUserQuery, uuid.String())
 	if err != nil {
-		logRepository("delete user failed uuid=%q: %v", uuid, err)
+		logRepository("delete user failed", "uuid", uuid, "error", err)
 		return err
 	}
 	if result.RowsAffected() == 0 {
-		logRepository("delete user not found uuid=%q", uuid)
+		logRepository("delete user not found", "uuid", uuid)
 		return ErrUserNotFound
 	}
-	logRepository("delete user ok uuid=%q", uuid)
+	logRepository("delete user ok", "uuid", uuid)
 	return nil
 }
 

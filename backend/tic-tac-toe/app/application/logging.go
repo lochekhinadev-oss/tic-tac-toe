@@ -1,13 +1,14 @@
 package application
 
 import (
-	"log"
+	"log/slog"
 
-	_ "tic-tac-toe/internal/logging"
+	observability "tic-tac-toe/internal/logging"
 )
 
 const applicationLogPrefix = "[app/application]"
 
-func logApplication(format string, args ...any) {
-	log.Printf(applicationLogPrefix+" "+format, args...)
+func logApplication(action string, args ...any) {
+	fields := append(observability.Fields(), args...)
+	slog.Info(applicationLogPrefix+" "+action, fields...)
 }

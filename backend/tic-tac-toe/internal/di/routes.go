@@ -11,6 +11,7 @@ import (
 
 	"tic-tac-toe/docs"
 	"tic-tac-toe/infrastructure/postgres/datasource"
+	appmetrics "tic-tac-toe/internal/metrics"
 	"tic-tac-toe/internal/transport/http/handler"
 	"tic-tac-toe/internal/transport/http/messages"
 	"tic-tac-toe/internal/transport/http/middleware"
@@ -143,6 +144,9 @@ func metrics(w http.ResponseWriter, _ *http.Request) {
 		"heapObjects":   mem.HeapObjects,
 		"gcCycles":      mem.NumGC,
 		"lastGCPauseNs": mem.PauseNs[(mem.NumGC+255)%256],
+		"httpRequests":  appmetrics.SnapshotHTTPRequestStats(),
+		"authEvents":    appmetrics.SnapshotAuthEventStats(),
+		"gameEvents":    appmetrics.SnapshotGameEventStats(),
 	})
 }
 

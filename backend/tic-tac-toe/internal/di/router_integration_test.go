@@ -31,6 +31,7 @@ func TestRouterSystemEndpoints(t *testing.T) {
 	}{
 		{name: "health", method: http.MethodGet, path: "/healthz", status: http.StatusOK, wantJSONKey: "status"},
 		{name: "ready", method: http.MethodGet, path: "/readyz", status: http.StatusOK, wantJSONKey: "status"},
+		{name: "metrics", method: http.MethodGet, path: "/metrics", status: http.StatusOK, contains: "httpRequests"},
 		{name: "swagger ui", method: http.MethodGet, path: "/swagger", status: http.StatusOK, contains: "SwaggerUIBundle"},
 		{name: "openapi yaml", method: http.MethodGet, path: "/openapi.yaml", status: http.StatusOK, contains: "swagger: \"2.0\""},
 		{name: "openapi json", method: http.MethodGet, path: "/swagger/doc.json", status: http.StatusOK, contains: `"swagger": "2.0"`},

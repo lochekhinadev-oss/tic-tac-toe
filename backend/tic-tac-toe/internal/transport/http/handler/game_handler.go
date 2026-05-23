@@ -9,6 +9,7 @@ import (
 
 	"tic-tac-toe/app/application"
 	"tic-tac-toe/app/domain"
+	"tic-tac-toe/internal/metrics"
 	"tic-tac-toe/internal/transport/http/dto"
 	"tic-tac-toe/internal/transport/http/messages"
 	"tic-tac-toe/internal/transport/http/middleware"
@@ -102,6 +103,7 @@ func (h *GameHandler) CreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logHandler("%s %s created game uuid=%s mode=%s", r.Method, r.URL.Path, game.UUID, game.Mode)
+	metrics.ObserveGameEvent("game_created")
 	webresponse.WriteJSON(w, http.StatusCreated, gameResponse(game))
 }
 
@@ -160,6 +162,7 @@ func (h *GameHandler) JoinGame(w http.ResponseWriter, r *http.Request, uuid goog
 	}
 
 	logHandler("%s %s joined game uuid=%s user=%s", r.Method, r.URL.Path, uuid.String(), userUUID.String())
+	metrics.ObserveGameEvent("game_joined")
 	h.writeGame(w, game)
 }
 
@@ -235,6 +238,11 @@ func (h *GameHandler) MakeMove(w http.ResponseWriter, r *http.Request, uuid goog
 	}
 
 	logHandler("%s %s move applied uuid=%s user=%s next_state=%s winner=%s", r.Method, r.URL.Path, uuid.String(), userUUID.String(), nextGame.State, nextGame.Winner.String())
+	if nextGame.State == domain.GameStateDraw || nextGame.State == domain.GameStatePlayerWins {
+		metrics.ObserveGameEvent("game_finished")
+	} else {
+		metrics.ObserveGameEvent("game_move")
+	}
 	h.writeGame(w, nextGame)
 }
 
@@ -380,7 +388,7 @@ func (h *GameHandler) writeCreateError(w http.ResponseWriter, r *http.Request, l
 	if responseMessage == "" {
 		responseMessage = err.Error()
 	}
-	logHandler("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
+	logHandlerError("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
 	write(w, responseMessage)
 	return true
 }
@@ -390,7 +398,7 @@ func (h *GameHandler) writeJoinError(w http.ResponseWriter, r *http.Request, log
 		return false
 	}
 
-	logHandler("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
+	logHandlerError("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
 	webresponse.WriteInternalError(w, responseMessage)
 	return true
 }
@@ -403,7 +411,7 @@ func (h *GameHandler) writeMoveError(w http.ResponseWriter, r *http.Request, log
 	if responseMessage == "" {
 		responseMessage = err.Error()
 	}
-	logHandler("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
+	logHandlerError("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
 	write(w, responseMessage)
 	return true
 }
@@ -413,7 +421,7 @@ func (h *GameHandler) writeLoadError(w http.ResponseWriter, r *http.Request, log
 		return false
 	}
 
-	logHandler("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
+	logHandlerError("%s %s %s: %v", r.Method, r.URL.Path, logMessage, err)
 	webresponse.WriteInternalError(w, responseMessage)
 	return true
 }

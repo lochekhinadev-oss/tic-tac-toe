@@ -5,7 +5,7 @@ import (
 )
 
 func (s *GameService) GetNextMove(game domain.Game) (domain.Game, error) {
-	logApplication("get next move uuid=%q", game.UUID)
+	logApplication("get next move", "uuid", game.UUID)
 
 	if game.UUID == "" {
 		logApplication("get next move invalid uuid")
@@ -13,12 +13,12 @@ func (s *GameService) GetNextMove(game domain.Game) (domain.Game, error) {
 	}
 
 	if err := validateFieldShape(game.Field); err != nil {
-		logApplication("get next move invalid field uuid=%q: %v", game.UUID, err)
+		logApplication("get next move invalid field", "uuid", game.UUID, "error", err)
 		return domain.Game{}, err
 	}
 
 	if _, finished := s.CheckGameFinished(game); finished {
-		logApplication("get next move finished game uuid=%q", game.UUID)
+		logApplication("get next move finished game", "uuid", game.UUID)
 		return domain.Game{}, ErrGameAlreadyFinished
 	}
 
@@ -43,7 +43,7 @@ func (s *GameService) GetNextMove(game domain.Game) (domain.Game, error) {
 	}
 
 	if bestRow == -1 || bestCol == -1 {
-		logApplication("get next move no move found uuid=%q", game.UUID)
+		logApplication("get next move no move found", "uuid", game.UUID)
 		return game, nil
 	}
 
@@ -61,7 +61,7 @@ func (s *GameService) GetNextMove(game domain.Game) (domain.Game, error) {
 		PlayerX:    game.PlayerX,
 		PlayerO:    game.PlayerO,
 	}
-	logApplication("get next move ok uuid=%q row=%d col=%d", game.UUID, bestRow, bestCol)
+	logApplication("get next move ok", "uuid", game.UUID, "row", bestRow, "col", bestCol)
 	return next, nil
 }
 

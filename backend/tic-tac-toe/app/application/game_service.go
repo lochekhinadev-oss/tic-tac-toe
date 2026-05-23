@@ -38,10 +38,10 @@ func NewGameServiceWithClock(now func() time.Time) *GameService {
 }
 
 func (s *GameService) CreateGame(uuid googleuuid.UUID, creatorUUID googleuuid.UUID, mode domain.GameMode) (domain.Game, error) {
-	logApplication("create game uuid=%q creator=%q mode=%q", uuid, creatorUUID, mode)
+	logApplication("create game", "uuid", uuid, "creator_uuid", creatorUUID, "mode", mode)
 
 	if uuid == googleuuid.Nil || creatorUUID == googleuuid.Nil {
-		logApplication("create game invalid uuid/creator uuid=%q creator=%q", uuid, creatorUUID)
+		logApplication("create game invalid uuid", "uuid", uuid, "creator_uuid", creatorUUID)
 		return domain.Game{}, ErrInvalidUUID
 	}
 
@@ -62,42 +62,42 @@ func (s *GameService) CreateGame(uuid googleuuid.UUID, creatorUUID googleuuid.UU
 	case domain.GameModePlayer:
 		game.State = domain.GameStateWaitingPlayers
 	default:
-		logApplication("create game invalid mode uuid=%q mode=%q", uuid, mode)
+		logApplication("create game invalid mode", "uuid", uuid, "mode", mode)
 		return domain.Game{}, ErrInvalidGameMode
 	}
 
-	logApplication("create game ok uuid=%q creator=%q mode=%q", uuid, creatorUUID, mode)
+	logApplication("create game ok", "uuid", uuid, "creator_uuid", creatorUUID, "mode", mode)
 	return game, nil
 }
 
 func (s *GameService) JoinGame(game domain.Game, userUUID googleuuid.UUID) (domain.Game, error) {
-	logApplication("join game uuid=%q user=%q state=%s mode=%s", game.UUID, userUUID, game.State, game.Mode)
+	logApplication("join game", "uuid", game.UUID, "user_uuid", userUUID, "state", game.State, "mode", game.Mode)
 
 	if game.UUID == "" || userUUID == googleuuid.Nil {
-		logApplication("join game invalid uuid user=%q game=%q", userUUID, game.UUID)
+		logApplication("join game invalid uuid", "user_uuid", userUUID, "game_uuid", game.UUID)
 		return domain.Game{}, ErrInvalidUUID
 	}
 	if game.Mode != domain.GameModePlayer || game.State != domain.GameStateWaitingPlayers || !game.PlayerO.IsZero() {
-		logApplication("join game not joinable uuid=%q user=%q", game.UUID, userUUID)
+		logApplication("join game not joinable", "uuid", game.UUID, "user_uuid", userUUID)
 		return domain.Game{}, ErrGameNotJoinable
 	}
 	if game.PlayerX.Matches(userUUID) {
-		logApplication("join game same player uuid=%q user=%q", game.UUID, userUUID)
+		logApplication("join game same player", "uuid", game.UUID, "user_uuid", userUUID)
 		return domain.Game{}, ErrGameNotJoinable
 	}
 
 	game.PlayerO = domain.NewUserPlayerRef(userUUID)
 	game.State = domain.GameStatePlayerToMove
 	game.NextPlayer = game.PlayerX
-	logApplication("join game ok uuid=%q user=%q", game.UUID, userUUID)
+	logApplication("join game ok", "uuid", game.UUID, "user_uuid", userUUID)
 	return game, nil
 }
 
 func (s *GameService) ApplyMove(previous domain.Game, current domain.Game, userUUID googleuuid.UUID) (domain.Game, error) {
-	logApplication("apply move uuid=%q user=%q state=%s mode=%s", previous.UUID, userUUID, previous.State, previous.Mode)
+	logApplication("apply move", "uuid", previous.UUID, "user_uuid", userUUID, "state", previous.State, "mode", previous.Mode)
 
 	if userUUID == googleuuid.Nil {
-		logApplication("apply move invalid user uuid=%q", previous.UUID)
+		logApplication("apply move invalid user uuid", "uuid", previous.UUID)
 		return domain.Game{}, ErrInvalidUUID
 	}
 	if previous.State == "" {
@@ -105,33 +105,33 @@ func (s *GameService) ApplyMove(previous domain.Game, current domain.Game, userU
 	}
 
 	if previous.State == domain.GameStateWaitingPlayers {
-		logApplication("apply move not joinable uuid=%q", previous.UUID)
+		logApplication("apply move not joinable", "uuid", previous.UUID)
 		return domain.Game{}, ErrGameNotJoinable
 	}
 	if previous.State == domain.GameStateDraw || previous.State == domain.GameStatePlayerWins {
-		logApplication("apply move already finished uuid=%q state=%s", previous.UUID, previous.State)
+		logApplication("apply move already finished", "uuid", previous.UUID, "state", previous.State)
 		return domain.Game{}, ErrGameAlreadyFinished
 	}
 	if !previous.NextPlayer.Matches(userUUID) {
-		logApplication("apply move wrong turn uuid=%q next=%q user=%q", previous.UUID, previous.NextPlayer.String(), userUUID)
+		logApplication("apply move wrong turn", "uuid", previous.UUID, "next", previous.NextPlayer.String(), "user_uuid", userUUID)
 		return domain.Game{}, ErrNotPlayerTurn
 	}
 
 	symbol, err := symbolForUser(previous, userUUID.String())
 	if err != nil {
-		logApplication("apply move symbol failed uuid=%q user=%q: %v", previous.UUID, userUUID, err)
+		logApplication("apply move symbol failed", "uuid", previous.UUID, "user_uuid", userUUID, "error", err)
 		return domain.Game{}, err
 	}
 
 	next, err := validatePlayerMove(previous, current, symbol)
 	if err != nil {
-		logApplication("apply move validation failed uuid=%q user=%q: %v", previous.UUID, userUUID, err)
+		logApplication("apply move validation failed", "uuid", previous.UUID, "user_uuid", userUUID, "error", err)
 		return domain.Game{}, err
 	}
 
 	next = s.updateGameState(next)
 	if next.State != domain.GameStatePlayerToMove {
-		logApplication("apply move finished uuid=%q user=%q state=%s winner=%s", next.UUID, userUUID, next.State, next.Winner.String())
+		logApplication("apply move finished", "uuid", next.UUID, "user_uuid", userUUID, "state", next.State, "winner", next.Winner.String())
 		return next, nil
 	}
 
@@ -145,7 +145,7 @@ func (s *GameService) ApplyMove(previous domain.Game, current domain.Game, userU
 	if next.Mode == domain.GameModeComputer && next.NextPlayer.IsComputer() {
 		computerGame, err := s.GetNextMove(next)
 		if err != nil {
-			logApplication("apply move computer move failed uuid=%q user=%q: %v", next.UUID, userUUID, err)
+			logApplication("apply move computer move failed", "uuid", next.UUID, "user_uuid", userUUID, "error", err)
 			return domain.Game{}, err
 		}
 		next.Field = computerGame.Field
@@ -155,6 +155,6 @@ func (s *GameService) ApplyMove(previous domain.Game, current domain.Game, userU
 		}
 	}
 
-	logApplication("apply move ok uuid=%q user=%q next=%q state=%s winner=%s", next.UUID, userUUID, next.NextPlayer.String(), next.State, next.Winner.String())
+	logApplication("apply move ok", "uuid", next.UUID, "user_uuid", userUUID, "next", next.NextPlayer.String(), "state", next.State, "winner", next.Winner.String())
 	return next, nil
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"tic-tac-toe/internal/metrics"
 )
 
 func RequestLogger(next http.Handler) http.Handler {
@@ -14,14 +15,15 @@ func RequestLogger(next http.Handler) http.Handler {
 		ww := chimiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 		next.ServeHTTP(ww, r)
+		duration := time.Since(start)
 
-		slog.Info("http request",
-			"request_id", chimiddleware.GetReqID(r.Context()),
-			"method", r.Method,
-			"path", r.URL.Path,
+		fields := append(
+			requestLogFields(r),
 			"status", ww.Status(),
 			"bytes", ww.BytesWritten(),
-			"duration", time.Since(start).Round(time.Millisecond).String(),
+			"duration", duration.Round(time.Millisecond).String(),
 		)
+		metrics.ObserveHTTPRequest(routeLabel(r), r.Method, ww.Status(), duration)
+		slog.Info("http request", fields...)
 	})
 }

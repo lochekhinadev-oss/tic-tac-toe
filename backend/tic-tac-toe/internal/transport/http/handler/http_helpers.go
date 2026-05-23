@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strings"
 
 	googleuuid "github.com/google/uuid"
 
-	_ "tic-tac-toe/internal/logging"
+	observability "tic-tac-toe/internal/logging"
 	"tic-tac-toe/internal/transport/http/messages"
 	webresponse "tic-tac-toe/internal/transport/http/response"
 )
@@ -24,7 +24,13 @@ var (
 )
 
 func logHandler(format string, args ...any) {
-	log.Printf(handlerLogPrefix+" "+format, args...)
+	fields := append(observability.Fields(), args...)
+	slog.Info(handlerLogPrefix+" "+format, fields...)
+}
+
+func logHandlerError(format string, args ...any) {
+	fields := append(observability.Fields(), args...)
+	slog.Error(handlerLogPrefix+" "+format, fields...)
 }
 
 func validateUUID(uuid string) error {

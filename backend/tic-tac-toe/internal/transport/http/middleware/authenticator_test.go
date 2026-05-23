@@ -1,11 +1,14 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	googleuuid "github.com/google/uuid"
@@ -54,6 +57,34 @@ func TestUserAuthenticatorProtectAllowsAuthorizedRequest(t *testing.T) {
 
 	if !nextCalled || rec.Code != http.StatusNoContent {
 		t.Fatalf("expected next handler to run, called=%v status=%d", nextCalled, rec.Code)
+	}
+}
+
+func TestUserAuthenticatorProtectDoesNotLeakSessionCookie(t *testing.T) {
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() {
+		slog.SetDefault(previous)
+	})
+
+	authenticator := NewUserAuthenticator(authServiceStub{uuid: testUUID}, allowAllAuthorizerStub{})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/games", nil)
+	req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
+
+	authenticator.Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(rec, req)
+
+	output := buf.String()
+	for _, secret := range []string{"session-1", authservice.SessionCookieName} {
+		if strings.Contains(output, secret) {
+			t.Fatalf("auth middleware leaked %q: %s", secret, output)
+		}
+	}
+	if !strings.Contains(output, "auth ok") || !strings.Contains(output, "user_uuid="+testUUID) {
+		t.Fatalf("unexpected log output: %s", output)
 	}
 }
 
