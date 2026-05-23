@@ -3,18 +3,20 @@ package application
 import (
 	"time"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 )
 
-func (s *GameService) withDefaultGameMetadata(game domain.Game, userUUID string) domain.Game {
+func (s *GameService) withDefaultGameMetadata(game domain.Game, userUUID googleuuid.UUID) domain.Game {
 	game.Mode = domain.GameModeComputer
 	game.State = domain.GameStatePlayerToMove
 	if game.CreatedAt.IsZero() {
 		game.CreatedAt = s.nowUTC()
 	}
-	game.NextPlayerUUID = userUUID
-	game.PlayerXUUID = userUUID
-	game.PlayerOUUID = domain.ComputerPlayerUUID
+	game.NextPlayer = domain.NewUserPlayerRef(userUUID)
+	game.PlayerX = domain.NewUserPlayerRef(userUUID)
+	game.PlayerO = domain.NewComputerPlayerRef()
 	return game
 }
 
@@ -26,10 +28,14 @@ func (s *GameService) nowUTC() time.Time {
 }
 
 func symbolForUser(game domain.Game, userUUID string) (int, error) {
-	switch userUUID {
-	case game.PlayerXUUID:
+	uuid, err := googleuuid.Parse(userUUID)
+	if err != nil {
+		return domain.CellEmpty, ErrInvalidUUID
+	}
+	switch {
+	case game.PlayerX.Matches(uuid):
 		return domain.CellX, nil
-	case game.PlayerOUUID:
+	case game.PlayerO.Matches(uuid):
 		return domain.CellO, nil
 	default:
 		return domain.CellEmpty, ErrUserNotGamePlayer
@@ -37,12 +43,16 @@ func symbolForUser(game domain.Game, userUUID string) (int, error) {
 }
 
 func opponentUUID(game domain.Game, userUUID string) string {
-	if userUUID == game.PlayerXUUID {
-		return game.PlayerOUUID
+	uuid, err := googleuuid.Parse(userUUID)
+	if err != nil {
+		return ""
 	}
-	return game.PlayerXUUID
+	if game.PlayerX.Matches(uuid) {
+		return game.PlayerO.String()
+	}
+	return game.PlayerX.String()
 }
 
 func isComputerPlayer(game domain.Game) bool {
-	return game.Mode == domain.GameModeComputer || game.PlayerOUUID == "" || game.PlayerOUUID == domain.ComputerPlayerUUID
+	return game.Mode == domain.GameModeComputer || game.PlayerO.IsZero() || game.PlayerO.IsComputer()
 }

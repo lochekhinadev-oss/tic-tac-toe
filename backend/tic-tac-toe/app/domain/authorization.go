@@ -1,6 +1,10 @@
 package domain
 
-import "context"
+import (
+	"context"
+
+	googleuuid "github.com/google/uuid"
+)
 
 const DefaultPlayerRole = "player"
 
@@ -21,16 +25,16 @@ type Principal struct {
 }
 
 type AuthorizationRepository interface {
-	AssignRoleToUser(ctx context.Context, userUUID string, roleName string) error
-	RevokeRoleFromUser(ctx context.Context, userUUID string, roleName string) error
-	LoadPrincipalVersion(ctx context.Context, userUUID string) (int64, error)
-	LoadPrincipal(ctx context.Context, userUUID string) (Principal, error)
+	AssignRoleToUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error
+	RevokeRoleFromUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error
+	LoadPrincipalVersion(ctx context.Context, userUUID googleuuid.UUID) (int64, error)
+	LoadPrincipal(ctx context.Context, userUUID googleuuid.UUID) (Principal, error)
 }
 
 type AuthorizationService interface {
-	GrantDefaultRole(ctx context.Context, userUUID string) error
-	GrantRoleToUser(ctx context.Context, userUUID string, roleName string) error
-	RevokeRoleFromUser(ctx context.Context, userUUID string, roleName string) error
-	LoadPrincipal(ctx context.Context, userUUID string) (Principal, error)
-	Can(ctx context.Context, userUUID string, permission Permission) (bool, error)
+	GrantDefaultRole(ctx context.Context, userUUID googleuuid.UUID) error
+	GrantRoleToUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error
+	RevokeRoleFromUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error
+	LoadPrincipal(ctx context.Context, userUUID googleuuid.UUID) (Principal, error)
+	Can(ctx context.Context, userUUID googleuuid.UUID, permission Permission) (bool, error)
 }

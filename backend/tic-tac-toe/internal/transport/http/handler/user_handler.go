@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/internal/transport/http/dto"
 	"tic-tac-toe/internal/transport/http/messages"
@@ -32,11 +34,9 @@ func NewUserHandler(users UserQueryService) *UserHandler {
 // @Failure 404 {object} dto.ErrorResponse "User not found"
 // @Failure 500 {object} dto.ErrorResponse "User was not loaded"
 // @Router /users/{uuid} [get]
-func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request, uuid string) {
+func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request, uuid googleuuid.UUID) {
 	logHandler("%s %s get user request uuid=%s", r.Method, r.URL.Path, uuid)
-
-	if err := validateUUID(uuid); err != nil {
-		logHandler("%s %s invalid uuid=%s: %v", r.Method, r.URL.Path, uuid, err)
+	if uuid == googleuuid.Nil {
 		webresponse.WriteBadRequest(w, messages.InvalidUUID)
 		return
 	}
@@ -47,7 +47,7 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request, uuid strin
 		webresponse.WriteNotFound(w, messages.UserNotFound)
 		return
 	}
-	if h.writeUserError(w, r, "failed to load user uuid="+uuid, messages.FailedLoadUser, err) {
+	if h.writeUserError(w, r, "failed to load user uuid="+uuid.String(), messages.FailedLoadUser, err) {
 		return
 	}
 
@@ -67,7 +67,17 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request, uuid strin
 // @Failure 500 {object} dto.ErrorResponse "User was not loaded"
 // @Router /users/me [get]
 func (h *UserHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
-	h.GetUser(w, r, middleware.UserUUIDFromContext(r.Context()))
+	uuid := middleware.UserUUIDFromContext(r.Context())
+	if uuid == "" {
+		webresponse.WriteUnauthorized(w)
+		return
+	}
+	parsedUUID, err := parseUUID(uuid)
+	if err != nil {
+		webresponse.WriteUnauthorized(w)
+		return
+	}
+	h.GetUser(w, r, parsedUUID)
 }
 
 // DeleteCurrentUser soft-deletes the authenticated user.
@@ -91,7 +101,13 @@ func (h *UserHandler) DeleteCurrentUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.users.DeleteUser(r.Context(), uuid); errors.Is(err, domain.ErrUserNotFound) {
+	parsedUUID, err := parseUUID(uuid)
+	if err != nil {
+		webresponse.WriteUnauthorized(w)
+		return
+	}
+
+	if err := h.users.DeleteUser(r.Context(), parsedUUID); errors.Is(err, domain.ErrUserNotFound) {
 		logHandler("%s %s user not found uuid=%s", r.Method, r.URL.Path, uuid)
 		webresponse.WriteNotFound(w, messages.UserNotFound)
 		return

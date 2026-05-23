@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	googleuuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -19,7 +20,7 @@ var (
 )
 
 const (
-	saveUserQuery           = `WITH inserted AS (
+	saveUserQuery = `WITH inserted AS (
     INSERT INTO users (uuid, login, password) VALUES ($1, $2, $3)
     RETURNING uuid
 )
@@ -94,7 +95,7 @@ func (r *PostgresUserRepository) GetUserByLogin(ctx context.Context, login strin
 	return mapper.ToDomainUser(user), nil
 }
 
-func (r *PostgresUserRepository) GetUserByUUID(ctx context.Context, uuid string) (domain.User, error) {
+func (r *PostgresUserRepository) GetUserByUUID(ctx context.Context, uuid googleuuid.UUID) (domain.User, error) {
 	logRepository("get user by uuid uuid=%q", uuid)
 	var scannedUUID sql.NullString
 	var login sql.NullString
@@ -103,7 +104,7 @@ func (r *PostgresUserRepository) GetUserByUUID(ctx context.Context, uuid string)
 	err := r.db.QueryRow(
 		ctx,
 		getUserByUUIDQuery,
-		uuid,
+		uuid.String(),
 	).Scan(&scannedUUID, &login, &password)
 	if errors.Is(err, pgx.ErrNoRows) {
 		logRepository("get user by uuid not found uuid=%q", uuid)
@@ -124,12 +125,12 @@ func (r *PostgresUserRepository) GetUserByUUID(ctx context.Context, uuid string)
 	return mapper.ToDomainUser(user), nil
 }
 
-func (r *PostgresUserRepository) UpdateUserPassword(ctx context.Context, uuid string, password string) error {
+func (r *PostgresUserRepository) UpdateUserPassword(ctx context.Context, uuid googleuuid.UUID, password string) error {
 	logRepository("update user password uuid=%q", uuid)
 	result, err := r.db.Exec(
 		ctx,
 		updateUserPasswordQuery,
-		uuid,
+		uuid.String(),
 		password,
 	)
 	if err != nil {
@@ -144,9 +145,9 @@ func (r *PostgresUserRepository) UpdateUserPassword(ctx context.Context, uuid st
 	return nil
 }
 
-func (r *PostgresUserRepository) DeleteUser(ctx context.Context, uuid string) error {
+func (r *PostgresUserRepository) DeleteUser(ctx context.Context, uuid googleuuid.UUID) error {
 	logRepository("delete user uuid=%q", uuid)
-	result, err := r.db.Exec(ctx, deleteUserQuery, uuid)
+	result, err := r.db.Exec(ctx, deleteUserQuery, uuid.String())
 	if err != nil {
 		logRepository("delete user failed uuid=%q: %v", uuid, err)
 		return err

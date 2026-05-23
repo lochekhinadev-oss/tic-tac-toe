@@ -1,6 +1,10 @@
 package domain
 
-import "context"
+import (
+	"context"
+
+	googleuuid "github.com/google/uuid"
+)
 
 type User struct {
 	UUID     string `db:"uuid"`
@@ -11,16 +15,16 @@ type User struct {
 type UserRepository interface {
 	SaveUser(ctx context.Context, user User) error
 	GetUserByLogin(ctx context.Context, login string) (User, error)
-	GetUserByUUID(ctx context.Context, uuid string) (User, error)
-	UpdateUserPassword(ctx context.Context, uuid string, password string) error
-	DeleteUser(ctx context.Context, uuid string) error
+	GetUserByUUID(ctx context.Context, uuid googleuuid.UUID) (User, error)
+	UpdateUserPassword(ctx context.Context, uuid googleuuid.UUID, password string) error
+	DeleteUser(ctx context.Context, uuid googleuuid.UUID) error
 }
 
 type UserService interface {
 	CreateUser(ctx context.Context, user User) error
 	GetUserByLogin(ctx context.Context, login string) (User, error)
-	GetUserByUUID(ctx context.Context, uuid string) (User, error)
-	UpdatePassword(ctx context.Context, uuid string, password string) error
-	DeleteUser(ctx context.Context, uuid string) error
+	GetUserByUUID(ctx context.Context, uuid googleuuid.UUID) (User, error)
+	UpdatePassword(ctx context.Context, uuid googleuuid.UUID, password string) error
+	DeleteUser(ctx context.Context, uuid googleuuid.UUID) error
 	VerifyPassword(user User, password string) (bool, bool)
 }

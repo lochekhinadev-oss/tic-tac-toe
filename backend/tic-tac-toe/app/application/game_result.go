@@ -9,10 +9,10 @@ func (s *GameService) CheckGameFinished(game domain.Game) (domain.GameResult, bo
 	case domain.GameStateDraw:
 		return domain.GameResult{Status: domain.GameDraw}, true
 	case domain.GameStatePlayerWins:
-		if game.WinnerUUID == domain.ComputerPlayerUUID {
-			return domain.GameResult{Status: domain.GameComputerWon, WinnerUUID: game.WinnerUUID}, true
+		if game.Winner.IsComputer() {
+			return domain.GameResult{Status: domain.GameComputerWon, Winner: game.Winner}, true
 		}
-		return domain.GameResult{Status: domain.GameUserWon, WinnerUUID: game.WinnerUUID}, true
+		return domain.GameResult{Status: domain.GameUserWon, Winner: game.Winner}, true
 	}
 
 	if err := validateFieldShape(game.Field); err != nil {
@@ -20,18 +20,18 @@ func (s *GameService) CheckGameFinished(game domain.Game) (domain.GameResult, bo
 	}
 
 	if hasWinner(game.Field, domain.CellUser) {
-		return domain.GameResult{Status: domain.GameUserWon, WinnerUUID: game.PlayerXUUID}, true
+		return domain.GameResult{Status: domain.GameUserWon, Winner: game.PlayerX}, true
 	}
 
 	if hasWinner(game.Field, domain.CellComputer) {
-		winnerUUID := game.PlayerOUUID
-		if winnerUUID == "" && isComputerPlayer(game) {
-			winnerUUID = domain.ComputerPlayerUUID
+		winner := game.PlayerO
+		if winner.IsZero() && isComputerPlayer(game) {
+			winner = domain.NewComputerPlayerRef()
 		}
 		if isComputerPlayer(game) {
-			return domain.GameResult{Status: domain.GameComputerWon, WinnerUUID: winnerUUID}, true
+			return domain.GameResult{Status: domain.GameComputerWon, Winner: winner}, true
 		}
-		return domain.GameResult{Status: domain.GameUserWon, WinnerUUID: winnerUUID}, true
+		return domain.GameResult{Status: domain.GameUserWon, Winner: winner}, true
 	}
 
 	if isBoardFull(game.Field) {
@@ -44,27 +44,27 @@ func (s *GameService) CheckGameFinished(game domain.Game) (domain.GameResult, bo
 func (s *GameService) updateGameState(game domain.Game) domain.Game {
 	if hasWinner(game.Field, domain.CellX) {
 		game.State = domain.GameStatePlayerWins
-		game.WinnerUUID = game.PlayerXUUID
-		game.NextPlayerUUID = ""
+		game.Winner = game.PlayerX
+		game.NextPlayer = domain.PlayerRef{}
 		return game
 	}
 
 	if hasWinner(game.Field, domain.CellO) {
 		game.State = domain.GameStatePlayerWins
-		game.WinnerUUID = game.PlayerOUUID
-		game.NextPlayerUUID = ""
+		game.Winner = game.PlayerO
+		game.NextPlayer = domain.PlayerRef{}
 		return game
 	}
 
 	if isBoardFull(game.Field) {
 		game.State = domain.GameStateDraw
-		game.WinnerUUID = ""
-		game.NextPlayerUUID = ""
+		game.Winner = domain.PlayerRef{}
+		game.NextPlayer = domain.PlayerRef{}
 		return game
 	}
 
 	game.State = domain.GameStatePlayerToMove
-	game.WinnerUUID = ""
+	game.Winner = domain.PlayerRef{}
 	return game
 }
 

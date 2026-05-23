@@ -106,13 +106,7 @@ var AppModule = fx.Options(
 )
 
 func NewApp(options ...fx.Option) *fx.App {
-	appOptions := []fx.Option{AppModule}
-	appOptions = append(appOptions, options...)
-	return fx.New(appOptions...)
-}
-
-func NewTokenAuthenticator(authService auth.AuthService) middleware.TokenAuthenticator {
-	return authService
+	return fx.New(append([]fx.Option{AppModule}, options...)...)
 }
 
 func AsGameCommandStorage(repo *repository.GameRepository) handler.GameCommandStorage {
@@ -125,4 +119,8 @@ func AsGameQueryService(repo *repository.GameRepository) handler.GameQueryServic
 
 func AsUserQueryService(userService domain.UserService) handler.UserQueryService {
 	return userService
+}
+
+func NewTokenAuthenticator(authService auth.AuthService) middleware.TokenAuthenticator {
+	return authService
 }

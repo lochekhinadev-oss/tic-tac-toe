@@ -1,6 +1,6 @@
 {
     "schemes": [
-        "http"
+        "https"
     ],
     "swagger": "2.0",
     "info": {
@@ -9,7 +9,7 @@
         "contact": {},
         "version": "1.0"
     },
-    "basePath": "/",
+    "basePath": "/tic-tac-toe",
     "paths": {
         "/auth/sessions": {
             "post": {

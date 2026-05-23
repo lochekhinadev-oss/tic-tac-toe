@@ -18,10 +18,10 @@ func gameResponse(game domain.Game) dto.GameResponse {
 		Mode:           string(game.Mode),
 		State:          string(game.State),
 		CreatedAt:      game.CreatedAt,
-		NextPlayerUUID: game.NextPlayerUUID,
-		WinnerUUID:     game.WinnerUUID,
-		PlayerXUUID:    game.PlayerXUUID,
-		PlayerOUUID:    game.PlayerOUUID,
+		NextPlayerUUID: game.NextPlayer.String(),
+		WinnerUUID:     game.Winner.String(),
+		PlayerXUUID:    game.PlayerX.String(),
+		PlayerOUUID:    game.PlayerO.String(),
 	}
 }
 

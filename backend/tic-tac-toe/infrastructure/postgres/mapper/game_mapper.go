@@ -12,24 +12,24 @@ func ToDatasourceGame(game domain.Game) datasource.Game {
 		Mode:           string(game.Mode),
 		State:          string(game.State),
 		CreatedAt:      game.CreatedAt,
-		NextPlayerUUID: game.NextPlayerUUID,
-		WinnerUUID:     game.WinnerUUID,
-		PlayerXUUID:    game.PlayerXUUID,
-		PlayerOUUID:    game.PlayerOUUID,
+		NextPlayerUUID: game.NextPlayer.String(),
+		WinnerUUID:     game.Winner.String(),
+		PlayerXUUID:    game.PlayerX.String(),
+		PlayerOUUID:    game.PlayerO.String(),
 	}
 }
 
 func ToDomainGame(game datasource.Game) domain.Game {
 	return domain.Game{
-		UUID:           game.UUID,
-		Field:          toDomainField(game.Field),
-		Mode:           domain.GameMode(game.Mode),
-		State:          domain.GameState(game.State),
-		CreatedAt:      game.CreatedAt,
-		NextPlayerUUID: game.NextPlayerUUID,
-		WinnerUUID:     game.WinnerUUID,
-		PlayerXUUID:    game.PlayerXUUID,
-		PlayerOUUID:    game.PlayerOUUID,
+		UUID:       game.UUID,
+		Field:      toDomainField(game.Field),
+		Mode:       domain.GameMode(game.Mode),
+		State:      domain.GameState(game.State),
+		CreatedAt:  game.CreatedAt,
+		NextPlayer: domain.PlayerRefFromString(game.NextPlayerUUID),
+		Winner:     domain.PlayerRefFromString(game.WinnerUUID),
+		PlayerX:    domain.PlayerRefFromString(game.PlayerXUUID),
+		PlayerO:    domain.PlayerRefFromString(game.PlayerOUUID),
 	}
 }
 

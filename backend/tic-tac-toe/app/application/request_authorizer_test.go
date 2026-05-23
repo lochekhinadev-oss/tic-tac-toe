@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 )
 
@@ -16,23 +18,27 @@ type requestAuthorizationStub struct {
 	version int64
 }
 
-func (s *requestAuthorizationStub) GrantDefaultRole(context.Context, string) error { return nil }
-
-func (s *requestAuthorizationStub) GrantRoleToUser(context.Context, string, string) error { return nil }
-
-func (s *requestAuthorizationStub) RevokeRoleFromUser(context.Context, string, string) error {
+func (s *requestAuthorizationStub) GrantDefaultRole(context.Context, googleuuid.UUID) error {
 	return nil
 }
 
-func (s *requestAuthorizationStub) LoadPrincipalVersion(context.Context, string) (int64, error) {
+func (s *requestAuthorizationStub) GrantRoleToUser(context.Context, googleuuid.UUID, string) error {
+	return nil
+}
+
+func (s *requestAuthorizationStub) RevokeRoleFromUser(context.Context, googleuuid.UUID, string) error {
+	return nil
+}
+
+func (s *requestAuthorizationStub) LoadPrincipalVersion(context.Context, googleuuid.UUID) (int64, error) {
 	return s.version, nil
 }
 
-func (s *requestAuthorizationStub) LoadPrincipal(context.Context, string) (domain.Principal, error) {
+func (s *requestAuthorizationStub) LoadPrincipal(context.Context, googleuuid.UUID) (domain.Principal, error) {
 	return domain.Principal{AuthzVersion: s.version}, nil
 }
 
-func (s *requestAuthorizationStub) Can(_ context.Context, _ string, permission domain.Permission) (bool, error) {
+func (s *requestAuthorizationStub) Can(_ context.Context, _ googleuuid.UUID, permission domain.Permission) (bool, error) {
 	s.called = true
 	s.perm = permission
 	return s.allowed, s.err
@@ -41,8 +47,9 @@ func (s *requestAuthorizationStub) Can(_ context.Context, _ string, permission d
 func TestRequestAuthorizationServiceAuthorizeRequest(t *testing.T) {
 	authz := &requestAuthorizationStub{allowed: true}
 	service := NewRequestAuthorizationService(authz, NewRoutePermissionPolicy())
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 
-	allowed, err := service.AuthorizeRequest(context.Background(), "user-1", "GET", "/games")
+	allowed, err := service.AuthorizeRequest(context.Background(), userUUID, "GET", "/games")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -57,8 +64,9 @@ func TestRequestAuthorizationServiceAuthorizeRequest(t *testing.T) {
 func TestRequestAuthorizationServiceRejectsUnknownRoute(t *testing.T) {
 	authz := &requestAuthorizationStub{allowed: true}
 	service := NewRequestAuthorizationService(authz, NewRoutePermissionPolicy())
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 
-	allowed, err := service.AuthorizeRequest(context.Background(), "user-1", "GET", "/metrics")
+	allowed, err := service.AuthorizeRequest(context.Background(), userUUID, "GET", "/metrics")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -73,8 +81,9 @@ func TestRequestAuthorizationServiceRejectsUnknownRoute(t *testing.T) {
 func TestRequestAuthorizationServicePropagatesErrors(t *testing.T) {
 	authz := &requestAuthorizationStub{allowed: false, err: errors.New("db failed")}
 	service := NewRequestAuthorizationService(authz, NewRoutePermissionPolicy())
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 
-	allowed, err := service.AuthorizeRequest(context.Background(), "user-1", "GET", "/games")
+	allowed, err := service.AuthorizeRequest(context.Background(), userUUID, "GET", "/games")
 	if err == nil {
 		t.Fatal("expected error")
 	}

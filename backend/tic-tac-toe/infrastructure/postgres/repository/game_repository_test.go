@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	googleuuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -28,16 +29,18 @@ func TestGameRepositorySaveAndGet(t *testing.T) {
 	game := sampleGame()
 	db := &databaseStub{}
 	repo := newGameRepo(db)
+	gameUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+	game.UUID = gameUUID.String()
 
 	if err := repo.SaveGame(context.Background(), game); err != nil {
 		t.Fatalf("unexpected save error: %v", err)
 	}
 
-	if db.savedUUID != "game-1" || db.savedField[1][1] != 2 {
+	if db.savedUUID != "123e4567-e89b-42d3-a456-426614174001" || db.savedField[1][1] != 2 {
 		t.Fatalf("unexpected saved game: %q %#v", db.savedUUID, db.savedField)
 	}
 
-	got, err := repo.GetGame(context.Background(), "game-1")
+	got, err := repo.GetGame(context.Background(), gameUUID)
 	if err != nil {
 		t.Fatalf("unexpected get error: %v", err)
 	}
@@ -50,7 +53,7 @@ func TestGameRepositorySaveAndGet(t *testing.T) {
 
 func TestGameRepositoryGetMissing(t *testing.T) {
 	repo := newGameRepo(&databaseStub{queryErr: pgx.ErrNoRows})
-	_, err := repo.GetGame(context.Background(), "missing")
+	_, err := repo.GetGame(context.Background(), googleuuid.Nil)
 	if !errors.Is(err, ErrGameNotFound) {
 		t.Fatalf("expected ErrGameNotFound, got %v", err)
 	}
@@ -72,9 +75,9 @@ func TestGameRepositorySaveGameIfUnchangedConflict(t *testing.T) {
 func TestGameRepositoryAppliesCompletedGameStats(t *testing.T) {
 	game := sampleGame()
 	game.State = domain.GameStatePlayerWins
-	game.WinnerUUID = "user-x"
-	game.PlayerXUUID = "user-x"
-	game.PlayerOUUID = "user-o"
+	game.Winner = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002"))
+	game.PlayerX = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002"))
+	game.PlayerO = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174003"))
 
 	db := &databaseStub{}
 	repo := newGameRepo(db)
@@ -140,8 +143,8 @@ func TestGameRepositoryCachesTopPlayers(t *testing.T) {
 func TestGameRepositoryInvalidatesTopPlayersCacheAfterCompletedGame(t *testing.T) {
 	game := sampleGame()
 	game.State = domain.GameStateDraw
-	game.PlayerXUUID = "user-x"
-	game.PlayerOUUID = "user-o"
+	game.PlayerX = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002"))
+	game.PlayerO = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174003"))
 
 	db := &databaseStub{topPlayers: []domain.WonGameInfo{sampleTopPlayer()}}
 	cache := &leaderboardCacheStub{hit: true, players: []domain.WonGameInfo{sampleTopPlayer()}}
@@ -298,8 +301,8 @@ func TestGameRepositoryListAndJoin(t *testing.T) {
 	game := sampleGame()
 	game.Mode = domain.GameModePlayer
 	game.State = domain.GameStateWaitingPlayers
-	game.PlayerXUUID = "user-x"
-	game.NextPlayerUUID = "user-x"
+	game.PlayerX = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002"))
+	game.NextPlayer = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002"))
 
 	db := &databaseStub{queryRows: &rowsStub{games: []domain.Game{game}}}
 	repo := newGameRepo(db)
@@ -312,7 +315,7 @@ func TestGameRepositoryListAndJoin(t *testing.T) {
 
 	historyDB := &databaseStub{queryRows: &rowsStub{games: []domain.Game{game}}}
 	historyRepo := newGameRepo(historyDB)
-	completed, err := historyRepo.ListCompletedGamesByUserUUID(context.Background(), "user-x")
+	completed, err := historyRepo.ListCompletedGamesByUserUUID(context.Background(), googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002"))
 	if err != nil {
 		t.Fatalf("unexpected completed list error: %v", err)
 	}
@@ -327,11 +330,11 @@ func TestGameRepositoryListAndJoin(t *testing.T) {
 	assertPlayers(t, players, sampleTopPlayer())
 
 	db.savedField = game.Field
-	joined, err := repo.JoinGame(context.Background(), "game-1", "user-o")
+	joined, err := repo.JoinGame(context.Background(), googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001"), googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174003"))
 	if err != nil {
 		t.Fatalf("unexpected join error: %v", err)
 	}
-	if joined.UUID != "game-1" {
+	if joined.UUID != "123e4567-e89b-42d3-a456-426614174001" {
 		t.Fatalf("unexpected joined game: %#v", joined)
 	}
 }
@@ -340,40 +343,47 @@ func TestGameRepositoryUsesParameterizedQueries(t *testing.T) {
 	t.Run("get game", func(t *testing.T) {
 		db := &databaseStub{savedField: sampleGame().Field}
 		repo := newGameRepo(db)
-
-		_, err := repo.GetGame(context.Background(), sqlInjectionPayload)
+		gameUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+		_, err := repo.GetGame(context.Background(), gameUUID)
 		if err != nil {
 			t.Fatalf("unexpected get error: %v", err)
 		}
 
 		assertQueryDoesNotContainPayload(t, db.lastQueryRowQuery)
-		assertArgsContainPayload(t, db.lastQueryRowArgs)
+		if len(db.lastQueryRowArgs) != 1 || db.lastQueryRowArgs[0] != gameUUID.String() {
+			t.Fatalf("expected uuid argument, got %#v", db.lastQueryRowArgs)
+		}
 	})
 
 	t.Run("completed games", func(t *testing.T) {
 		db := &databaseStub{queryRows: &rowsStub{}}
 		repo := newGameRepo(db)
-
-		_, err := repo.ListCompletedGamesByUserUUID(context.Background(), sqlInjectionPayload)
+		userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")
+		_, err := repo.ListCompletedGamesByUserUUID(context.Background(), userUUID)
 		if err != nil {
 			t.Fatalf("unexpected list error: %v", err)
 		}
 
 		assertQueryDoesNotContainPayload(t, db.lastQueryQuery)
-		assertArgsContainPayload(t, db.lastQueryArgs)
+		if len(db.lastQueryArgs) != 3 || db.lastQueryArgs[0] != userUUID.String() {
+			t.Fatalf("expected uuid argument, got %#v", db.lastQueryArgs)
+		}
 	})
 
 	t.Run("join game", func(t *testing.T) {
 		db := &databaseStub{savedField: sampleGame().Field}
 		repo := newGameRepo(db)
-
-		_, err := repo.JoinGame(context.Background(), sqlInjectionPayload, "user-o")
+		gameUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+		userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174003")
+		_, err := repo.JoinGame(context.Background(), gameUUID, userUUID)
 		if err != nil {
 			t.Fatalf("unexpected join error: %v", err)
 		}
 
 		assertQueryDoesNotContainPayload(t, db.lastQueryRowQuery)
-		assertArgsContainPayload(t, db.lastQueryRowArgs)
+		if len(db.lastQueryRowArgs) != 5 || db.lastQueryRowArgs[0] != gameUUID.String() || db.lastQueryRowArgs[1] != userUUID.String() {
+			t.Fatalf("expected uuid arguments, got %#v", db.lastQueryRowArgs)
+		}
 	})
 }
 
@@ -383,13 +393,13 @@ func TestGameRepositoryErrors(t *testing.T) {
 		t.Fatal("expected list query error")
 	}
 
-	repo = newGameRepo(&databaseStub{queryRows: &rowsStub{scanErr: errors.New("scan failed"), games: []domain.Game{{UUID: "game-1"}}}})
+	repo = newGameRepo(&databaseStub{queryRows: &rowsStub{scanErr: errors.New("scan failed"), games: []domain.Game{{UUID: "123e4567-e89b-42d3-a456-426614174001"}}}})
 	if _, err := repo.ListActiveGames(context.Background()); err == nil {
 		t.Fatal("expected list scan error")
 	}
 
 	repo = newGameRepo(&databaseStub{queryError: errors.New("query failed")})
-	if _, err := repo.ListCompletedGamesByUserUUID(context.Background(), "user-1"); err == nil {
+	if _, err := repo.ListCompletedGamesByUserUUID(context.Background(), googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")); err == nil {
 		t.Fatal("expected completed list query error")
 	}
 
@@ -404,14 +414,14 @@ func TestGameRepositoryErrors(t *testing.T) {
 	}
 
 	repo = newGameRepo(&databaseStub{queryErr: pgx.ErrNoRows})
-	if _, err := repo.JoinGame(context.Background(), "game-1", "user-o"); !errors.Is(err, ErrGameNotJoinable) {
+	if _, err := repo.JoinGame(context.Background(), googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001"), googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174003")); !errors.Is(err, ErrGameNotJoinable) {
 		t.Fatalf("expected ErrGameNotJoinable, got %v", err)
 	}
 }
 
 func sampleGame() domain.Game {
 	return domain.Game{
-		UUID:      "game-1",
+		UUID:      "123e4567-e89b-42d3-a456-426614174001",
 		Mode:      domain.GameModeComputer,
 		State:     domain.GameStatePlayerToMove,
 		CreatedAt: time.Date(2026, 5, 15, 20, 0, 0, 0, time.UTC),
@@ -425,7 +435,7 @@ func sampleGame() domain.Game {
 
 func sampleTopPlayer() domain.WonGameInfo {
 	return domain.WonGameInfo{
-		UserUUID: "user-x",
+		UserUUID: "123e4567-e89b-42d3-a456-426614174002",
 		Login:    "player",
 		WinRatio: 1,
 	}
@@ -522,10 +532,10 @@ func (r *rowsStub) Scan(dest ...any) error {
 	setString(dest[2], string(game.Mode))
 	setString(dest[3], string(game.State))
 	setTime(dest[4], game.CreatedAt)
-	setString(dest[5], game.NextPlayerUUID)
-	setString(dest[6], game.WinnerUUID)
-	setString(dest[7], game.PlayerXUUID)
-	setString(dest[8], game.PlayerOUUID)
+	setString(dest[5], game.NextPlayer.String())
+	setString(dest[6], game.Winner.String())
+	setString(dest[7], game.PlayerX.String())
+	setString(dest[8], game.PlayerO.String())
 	return nil
 }
 

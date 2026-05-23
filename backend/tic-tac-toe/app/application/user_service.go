@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	googleuuid "github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"tic-tac-toe/app/domain"
@@ -59,7 +60,7 @@ func (s *UserService) GetUserByLogin(ctx context.Context, login string) (domain.
 	return user, nil
 }
 
-func (s *UserService) GetUserByUUID(ctx context.Context, uuid string) (domain.User, error) {
+func (s *UserService) GetUserByUUID(ctx context.Context, uuid googleuuid.UUID) (domain.User, error) {
 	logApplication("get user by uuid uuid=%q", uuid)
 	user, err := s.repository.GetUserByUUID(ctx, uuid)
 	if err != nil {
@@ -70,7 +71,7 @@ func (s *UserService) GetUserByUUID(ctx context.Context, uuid string) (domain.Us
 	return user, nil
 }
 
-func (s *UserService) UpdatePassword(ctx context.Context, uuid string, password string) error {
+func (s *UserService) UpdatePassword(ctx context.Context, uuid googleuuid.UUID, password string) error {
 	logApplication("update password uuid=%q", uuid)
 	hash, err := hashPassword(password)
 	if err != nil {
@@ -87,7 +88,7 @@ func (s *UserService) UpdatePassword(ctx context.Context, uuid string, password 
 	return nil
 }
 
-func (s *UserService) DeleteUser(ctx context.Context, uuid string) error {
+func (s *UserService) DeleteUser(ctx context.Context, uuid googleuuid.UUID) error {
 	logApplication("delete user uuid=%q", uuid)
 	if err := s.repository.DeleteUser(ctx, uuid); err != nil {
 		logApplication("delete user failed uuid=%q: %v", uuid, err)

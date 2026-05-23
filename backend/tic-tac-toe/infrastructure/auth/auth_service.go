@@ -93,14 +93,24 @@ func (s *service) SignIn(ctx context.Context, request SessionRequest) (SessionRe
 		return SessionResponse{}, ErrInvalidCredentials
 	}
 	if needsUpdate {
-		if err := s.users.UpdatePassword(ctx, user.UUID, request.Password); err != nil {
+		userUUID, err := uuid.Parse(user.UUID)
+		if err != nil {
+			logAuth("sign in invalid user uuid=%q: %v", user.UUID, err)
+			return SessionResponse{}, ErrInvalidCredentials
+		}
+		if err := s.users.UpdatePassword(ctx, userUUID, request.Password); err != nil {
 			logAuth("sign in password migration failed uuid=%q: %v", user.UUID, err)
 			return SessionResponse{}, err
 		}
 	}
 
 	if s.authorization != nil {
-		if err := s.authorization.GrantDefaultRole(ctx, user.UUID); err != nil {
+		userUUID, err := uuid.Parse(user.UUID)
+		if err != nil {
+			logAuth("sign in invalid user uuid=%q: %v", user.UUID, err)
+			return SessionResponse{}, ErrInvalidCredentials
+		}
+		if err := s.authorization.GrantDefaultRole(ctx, userUUID); err != nil {
 			logAuth("sign in default role grant failed uuid=%q: %v", user.UUID, err)
 			return SessionResponse{}, err
 		}
@@ -217,7 +227,13 @@ func (s *service) activeSessionBySessionID(ctx context.Context, sessionID string
 		return repository.RefreshSession{}, domain.User{}, err
 	}
 
-	user, err := s.users.GetUserByUUID(ctx, session.UserUUID)
+	userUUID, err := uuid.Parse(session.UserUUID)
+	if err != nil {
+		logAuth("session user uuid invalid session=%q: %v", session.RefreshJTIHash, err)
+		return repository.RefreshSession{}, domain.User{}, ErrInvalidToken
+	}
+
+	user, err := s.users.GetUserByUUID(ctx, userUUID)
 	if errors.Is(err, domain.ErrUserNotFound) {
 		logAuth("session user missing uuid=%q", session.UserUUID)
 		return repository.RefreshSession{}, domain.User{}, ErrInvalidToken

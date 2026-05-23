@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 	authservice "tic-tac-toe/infrastructure/auth"
 	"tic-tac-toe/infrastructure/postgres/datasource"
@@ -27,11 +29,11 @@ func (d *databaseStub) Ping(context.Context) error {
 
 type authStub struct{}
 
-func (authStub) Can(context.Context, string, domain.Permission) (bool, error) {
+func (authStub) Can(context.Context, googleuuid.UUID, domain.Permission) (bool, error) {
 	return true, nil
 }
 
-func (authStub) AuthorizeRequest(context.Context, string, string, string) (bool, error) {
+func (authStub) AuthorizeRequest(context.Context, googleuuid.UUID, string, string) (bool, error) {
 	return true, nil
 }
 
@@ -40,11 +42,11 @@ func (authStub) SignUp(context.Context, authservice.SignUpRequest) (bool, error)
 }
 
 func (authStub) SignIn(context.Context, authservice.SessionRequest) (authservice.SessionResponse, error) {
-	return authservice.SessionResponse{UserUUID: "user-1", SessionID: "session-1"}, nil
+	return authservice.SessionResponse{UserUUID: "123e4567-e89b-42d3-a456-426614174000", SessionID: "session-1"}, nil
 }
 
 func (authStub) RefreshSession(context.Context, string) (authservice.SessionResponse, error) {
-	return authservice.SessionResponse{UserUUID: "user-1", SessionID: "session-2"}, nil
+	return authservice.SessionResponse{UserUUID: "123e4567-e89b-42d3-a456-426614174000", SessionID: "session-2"}, nil
 }
 
 func (authStub) Logout(context.Context, string) error { return nil }
@@ -52,16 +54,16 @@ func (authStub) Logout(context.Context, string) error { return nil }
 func (authStub) LogoutAll(context.Context, string) error { return nil }
 
 func (authStub) AuthenticateSession(context.Context, string) (string, error) {
-	return "user-1", nil
+	return "123e4567-e89b-42d3-a456-426614174000", nil
 }
 
 type deniedAuthStub struct{}
 
-func (deniedAuthStub) Can(context.Context, string, domain.Permission) (bool, error) {
+func (deniedAuthStub) Can(context.Context, googleuuid.UUID, domain.Permission) (bool, error) {
 	return false, nil
 }
 
-func (deniedAuthStub) AuthorizeRequest(context.Context, string, string, string) (bool, error) {
+func (deniedAuthStub) AuthorizeRequest(context.Context, googleuuid.UUID, string, string) (bool, error) {
 	return false, nil
 }
 
@@ -91,25 +93,25 @@ func (deniedAuthStub) AuthenticateSession(context.Context, string) (string, erro
 
 type gameLogicStub struct{}
 
-func (gameLogicStub) CreateGame(uuid string, creatorUUID string, mode domain.GameMode) (domain.Game, error) {
+func (gameLogicStub) CreateGame(uuid googleuuid.UUID, creatorUUID googleuuid.UUID, mode domain.GameMode) (domain.Game, error) {
 	return domain.Game{
-		UUID:           uuid,
-		Field:          domain.Field{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
-		Mode:           mode,
-		State:          domain.GameStatePlayerToMove,
-		NextPlayerUUID: creatorUUID,
-		PlayerXUUID:    creatorUUID,
-		PlayerOUUID:    domain.ComputerPlayerUUID,
+		UUID:       uuid.String(),
+		Field:      domain.Field{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
+		Mode:       mode,
+		State:      domain.GameStatePlayerToMove,
+		NextPlayer: domain.NewUserPlayerRef(creatorUUID),
+		PlayerX:    domain.NewUserPlayerRef(creatorUUID),
+		PlayerO:    domain.NewComputerPlayerRef(),
 	}, nil
 }
 
-func (gameLogicStub) JoinGame(game domain.Game, userUUID string) (domain.Game, error) {
-	game.PlayerOUUID = userUUID
+func (gameLogicStub) JoinGame(game domain.Game, userUUID googleuuid.UUID) (domain.Game, error) {
+	game.PlayerO = domain.NewUserPlayerRef(userUUID)
 	game.State = domain.GameStatePlayerToMove
 	return game, nil
 }
 
-func (gameLogicStub) ApplyMove(previous domain.Game, current domain.Game, _ string) (domain.Game, error) {
+func (gameLogicStub) ApplyMove(previous domain.Game, current domain.Game, _ googleuuid.UUID) (domain.Game, error) {
 	previous.Field = current.Field
 	return previous, nil
 }
@@ -122,14 +124,14 @@ func (gameStorageStub) SaveGameIfUnchanged(context.Context, domain.Game, domain.
 	return nil
 }
 
-func (gameStorageStub) GetGame(_ context.Context, uuid string) (domain.Game, error) {
+func (gameStorageStub) GetGame(_ context.Context, uuid googleuuid.UUID) (domain.Game, error) {
 	return domain.Game{
-		UUID:           uuid,
-		Field:          domain.Field{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
-		Mode:           domain.GameModePlayer,
-		State:          domain.GameStateWaitingPlayers,
-		NextPlayerUUID: "user-1",
-		PlayerXUUID:    "user-x",
+		UUID:       uuid.String(),
+		Field:      domain.Field{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
+		Mode:       domain.GameModePlayer,
+		State:      domain.GameStateWaitingPlayers,
+		NextPlayer: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174000")),
+		PlayerX:    domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")),
 	}, nil
 }
 
@@ -137,17 +139,17 @@ func (gameStorageStub) ListActiveGames(context.Context) ([]domain.Game, error) {
 	return []domain.Game{{UUID: "123e4567-e89b-42d3-a456-426614174000", Field: domain.Field{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}}, nil
 }
 
-func (gameStorageStub) ListCompletedGamesByUserUUID(context.Context, string) ([]domain.Game, error) {
-	return []domain.Game{{UUID: "123e4567-e89b-42d3-a456-426614174000", Field: domain.Field{{1, 2, 1}, {2, 1, 2}, {2, 1, 1}}, State: domain.GameStatePlayerWins, WinnerUUID: "user-1"}}, nil
+func (gameStorageStub) ListCompletedGamesByUserUUID(context.Context, googleuuid.UUID) ([]domain.Game, error) {
+	return []domain.Game{{UUID: "123e4567-e89b-42d3-a456-426614174000", Field: domain.Field{{1, 2, 1}, {2, 1, 2}, {2, 1, 1}}, State: domain.GameStatePlayerWins, Winner: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174000"))}}, nil
 }
 
 func (gameStorageStub) ListTopPlayers(context.Context, int) ([]domain.WonGameInfo, error) {
 	return []domain.WonGameInfo{{UserUUID: "123e4567-e89b-42d3-a456-426614174000", Login: "player", WinRatio: 1}}, nil
 }
 
-func (gameStorageStub) JoinGame(ctx context.Context, uuid string, userUUID string) (domain.Game, error) {
+func (gameStorageStub) JoinGame(ctx context.Context, uuid googleuuid.UUID, userUUID googleuuid.UUID) (domain.Game, error) {
 	game, _ := gameStorageStub{}.GetGame(ctx, uuid)
-	game.PlayerOUUID = userUUID
+	game.PlayerO = domain.NewUserPlayerRef(userUUID)
 	game.State = domain.GameStatePlayerToMove
 	return game, nil
 }
@@ -157,16 +159,16 @@ type userServiceStub struct{}
 func (userServiceStub) CreateUser(context.Context, domain.User) error { return nil }
 
 func (userServiceStub) GetUserByLogin(context.Context, string) (domain.User, error) {
-	return domain.User{UUID: "user-1", Login: "player"}, nil
-}
-
-func (userServiceStub) GetUserByUUID(context.Context, string) (domain.User, error) {
 	return domain.User{UUID: "123e4567-e89b-42d3-a456-426614174000", Login: "player"}, nil
 }
 
-func (userServiceStub) UpdatePassword(context.Context, string, string) error { return nil }
+func (userServiceStub) GetUserByUUID(context.Context, googleuuid.UUID) (domain.User, error) {
+	return domain.User{UUID: "123e4567-e89b-42d3-a456-426614174000", Login: "player"}, nil
+}
 
-func (userServiceStub) DeleteUser(context.Context, string) error { return nil }
+func (userServiceStub) UpdatePassword(context.Context, googleuuid.UUID, string) error { return nil }
+
+func (userServiceStub) DeleteUser(context.Context, googleuuid.UUID) error { return nil }
 
 func (userServiceStub) VerifyPassword(domain.User, string) (bool, bool) { return true, false }
 

@@ -51,15 +51,15 @@ func (s *GameService) GetNextMove(game domain.Game) (domain.Game, error) {
 	nextField[bestRow][bestCol] = domain.CellComputer
 
 	next := domain.Game{
-		UUID:           game.UUID,
-		Field:          nextField,
-		Mode:           game.Mode,
-		State:          game.State,
-		CreatedAt:      game.CreatedAt,
-		NextPlayerUUID: game.NextPlayerUUID,
-		WinnerUUID:     game.WinnerUUID,
-		PlayerXUUID:    game.PlayerXUUID,
-		PlayerOUUID:    game.PlayerOUUID,
+		UUID:       game.UUID,
+		Field:      nextField,
+		Mode:       game.Mode,
+		State:      game.State,
+		CreatedAt:  game.CreatedAt,
+		NextPlayer: game.NextPlayer,
+		Winner:     game.Winner,
+		PlayerX:    game.PlayerX,
+		PlayerO:    game.PlayerO,
 	}
 	logApplication("get next move ok uuid=%q row=%d col=%d", game.UUID, bestRow, bestCol)
 	return next, nil

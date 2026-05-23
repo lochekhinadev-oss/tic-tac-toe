@@ -4,6 +4,8 @@ import (
 	"errors"
 	"time"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 )
 
@@ -35,28 +37,28 @@ func NewGameServiceWithClock(now func() time.Time) *GameService {
 	return &GameService{now: now}
 }
 
-func (s *GameService) CreateGame(uuid string, creatorUUID string, mode domain.GameMode) (domain.Game, error) {
+func (s *GameService) CreateGame(uuid googleuuid.UUID, creatorUUID googleuuid.UUID, mode domain.GameMode) (domain.Game, error) {
 	logApplication("create game uuid=%q creator=%q mode=%q", uuid, creatorUUID, mode)
 
-	if uuid == "" || creatorUUID == "" {
+	if uuid == googleuuid.Nil || creatorUUID == googleuuid.Nil {
 		logApplication("create game invalid uuid/creator uuid=%q creator=%q", uuid, creatorUUID)
 		return domain.Game{}, ErrInvalidUUID
 	}
 
 	field := newEmptyDomainField()
 	game := domain.Game{
-		UUID:        uuid,
-		Field:       field,
-		Mode:        mode,
-		CreatedAt:   s.nowUTC(),
-		PlayerXUUID: creatorUUID,
+		UUID:      uuid.String(),
+		Field:     field,
+		Mode:      mode,
+		CreatedAt: s.nowUTC(),
+		PlayerX:   domain.NewUserPlayerRef(creatorUUID),
 	}
 
 	switch mode {
 	case domain.GameModeComputer:
-		game.PlayerOUUID = domain.ComputerPlayerUUID
+		game.PlayerO = domain.NewComputerPlayerRef()
 		game.State = domain.GameStatePlayerToMove
-		game.NextPlayerUUID = creatorUUID
+		game.NextPlayer = domain.NewUserPlayerRef(creatorUUID)
 	case domain.GameModePlayer:
 		game.State = domain.GameStateWaitingPlayers
 	default:
@@ -68,33 +70,33 @@ func (s *GameService) CreateGame(uuid string, creatorUUID string, mode domain.Ga
 	return game, nil
 }
 
-func (s *GameService) JoinGame(game domain.Game, userUUID string) (domain.Game, error) {
+func (s *GameService) JoinGame(game domain.Game, userUUID googleuuid.UUID) (domain.Game, error) {
 	logApplication("join game uuid=%q user=%q state=%s mode=%s", game.UUID, userUUID, game.State, game.Mode)
 
-	if game.UUID == "" || userUUID == "" {
+	if game.UUID == "" || userUUID == googleuuid.Nil {
 		logApplication("join game invalid uuid user=%q game=%q", userUUID, game.UUID)
 		return domain.Game{}, ErrInvalidUUID
 	}
-	if game.Mode != domain.GameModePlayer || game.State != domain.GameStateWaitingPlayers || game.PlayerOUUID != "" {
+	if game.Mode != domain.GameModePlayer || game.State != domain.GameStateWaitingPlayers || !game.PlayerO.IsZero() {
 		logApplication("join game not joinable uuid=%q user=%q", game.UUID, userUUID)
 		return domain.Game{}, ErrGameNotJoinable
 	}
-	if game.PlayerXUUID == userUUID {
+	if game.PlayerX.Matches(userUUID) {
 		logApplication("join game same player uuid=%q user=%q", game.UUID, userUUID)
 		return domain.Game{}, ErrGameNotJoinable
 	}
 
-	game.PlayerOUUID = userUUID
+	game.PlayerO = domain.NewUserPlayerRef(userUUID)
 	game.State = domain.GameStatePlayerToMove
-	game.NextPlayerUUID = game.PlayerXUUID
+	game.NextPlayer = game.PlayerX
 	logApplication("join game ok uuid=%q user=%q", game.UUID, userUUID)
 	return game, nil
 }
 
-func (s *GameService) ApplyMove(previous domain.Game, current domain.Game, userUUID string) (domain.Game, error) {
+func (s *GameService) ApplyMove(previous domain.Game, current domain.Game, userUUID googleuuid.UUID) (domain.Game, error) {
 	logApplication("apply move uuid=%q user=%q state=%s mode=%s", previous.UUID, userUUID, previous.State, previous.Mode)
 
-	if userUUID == "" {
+	if userUUID == googleuuid.Nil {
 		logApplication("apply move invalid user uuid=%q", previous.UUID)
 		return domain.Game{}, ErrInvalidUUID
 	}
@@ -110,12 +112,12 @@ func (s *GameService) ApplyMove(previous domain.Game, current domain.Game, userU
 		logApplication("apply move already finished uuid=%q state=%s", previous.UUID, previous.State)
 		return domain.Game{}, ErrGameAlreadyFinished
 	}
-	if previous.NextPlayerUUID != userUUID {
-		logApplication("apply move wrong turn uuid=%q next=%q user=%q", previous.UUID, previous.NextPlayerUUID, userUUID)
+	if !previous.NextPlayer.Matches(userUUID) {
+		logApplication("apply move wrong turn uuid=%q next=%q user=%q", previous.UUID, previous.NextPlayer.String(), userUUID)
 		return domain.Game{}, ErrNotPlayerTurn
 	}
 
-	symbol, err := symbolForUser(previous, userUUID)
+	symbol, err := symbolForUser(previous, userUUID.String())
 	if err != nil {
 		logApplication("apply move symbol failed uuid=%q user=%q: %v", previous.UUID, userUUID, err)
 		return domain.Game{}, err
@@ -129,13 +131,18 @@ func (s *GameService) ApplyMove(previous domain.Game, current domain.Game, userU
 
 	next = s.updateGameState(next)
 	if next.State != domain.GameStatePlayerToMove {
-		logApplication("apply move finished uuid=%q user=%q state=%s winner=%s", next.UUID, userUUID, next.State, next.WinnerUUID)
+		logApplication("apply move finished uuid=%q user=%q state=%s winner=%s", next.UUID, userUUID, next.State, next.Winner.String())
 		return next, nil
 	}
 
-	next.NextPlayerUUID = opponentUUID(next, userUUID)
+	nextPlayer := opponentUUID(next, userUUID.String())
+	if nextPlayer != "" {
+		next.NextPlayer = domain.PlayerRefFromString(nextPlayer)
+	} else {
+		next.NextPlayer = domain.PlayerRef{}
+	}
 
-	if next.Mode == domain.GameModeComputer && next.NextPlayerUUID == domain.ComputerPlayerUUID {
+	if next.Mode == domain.GameModeComputer && next.NextPlayer.IsComputer() {
 		computerGame, err := s.GetNextMove(next)
 		if err != nil {
 			logApplication("apply move computer move failed uuid=%q user=%q: %v", next.UUID, userUUID, err)
@@ -144,10 +151,10 @@ func (s *GameService) ApplyMove(previous domain.Game, current domain.Game, userU
 		next.Field = computerGame.Field
 		next = s.updateGameState(next)
 		if next.State == domain.GameStatePlayerToMove {
-			next.NextPlayerUUID = next.PlayerXUUID
+			next.NextPlayer = next.PlayerX
 		}
 	}
 
-	logApplication("apply move ok uuid=%q user=%q next=%q state=%s winner=%s", next.UUID, userUUID, next.NextPlayerUUID, next.State, next.WinnerUUID)
+	logApplication("apply move ok uuid=%q user=%q next=%q state=%s winner=%s", next.UUID, userUUID, next.NextPlayer.String(), next.State, next.Winner.String())
 	return next, nil
 }

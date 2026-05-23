@@ -3,6 +3,8 @@ package application
 import (
 	"testing"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 )
 
@@ -38,23 +40,23 @@ func TestCheckGameFinished(t *testing.T) {
 		{
 			name: "state user won",
 			game: domain.Game{
-				State:      domain.GameStatePlayerWins,
-				Field:      emptyField(),
-				WinnerUUID: "user-x",
+				State:  domain.GameStatePlayerWins,
+				Field:  emptyField(),
+				Winner: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174101")),
 			},
 			status:   domain.GameUserWon,
-			winner:   "user-x",
+			winner:   "123e4567-e89b-42d3-a456-426614174101",
 			finished: true,
 		},
 		{
 			name: "state computer won",
 			game: domain.Game{
-				State:      domain.GameStatePlayerWins,
-				Field:      emptyField(),
-				WinnerUUID: domain.ComputerPlayerUUID,
+				State:  domain.GameStatePlayerWins,
+				Field:  emptyField(),
+				Winner: domain.NewComputerPlayerRef(),
 			},
 			status:   domain.GameComputerWon,
-			winner:   domain.ComputerPlayerUUID,
+			winner:   domain.NewComputerPlayerRef().String(),
 			finished: true,
 		},
 		{
@@ -75,7 +77,7 @@ func TestCheckGameFinished(t *testing.T) {
 				{domain.CellEmpty, domain.CellEmpty, domain.CellComputer},
 			}},
 			status:   domain.GameComputerWon,
-			winner:   domain.ComputerPlayerUUID,
+			winner:   domain.NewComputerPlayerRef().String(),
 			finished: true,
 		},
 		{
@@ -86,12 +88,12 @@ func TestCheckGameFinished(t *testing.T) {
 					{domain.CellEmpty, domain.CellO, domain.CellX},
 					{domain.CellEmpty, domain.CellEmpty, domain.CellO},
 				},
-				Mode:        domain.GameModePlayer,
-				PlayerXUUID: "user-x",
-				PlayerOUUID: "user-o",
+				Mode:    domain.GameModePlayer,
+				PlayerX: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174201")),
+				PlayerO: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174202")),
 			},
 			status:   domain.GameUserWon,
-			winner:   "user-o",
+			winner:   "123e4567-e89b-42d3-a456-426614174202",
 			finished: true,
 		},
 		{
@@ -119,8 +121,8 @@ func TestCheckGameFinished(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, finished := service.CheckGameFinished(tt.game)
-			if result.Status != tt.status || result.WinnerUUID != tt.winner || finished != tt.finished {
-				t.Fatalf("expected (%v,%q,%v), got (%v,%q,%v)", tt.status, tt.winner, tt.finished, result.Status, result.WinnerUUID, finished)
+			if result.Status != tt.status || result.Winner.String() != tt.winner || finished != tt.finished {
+				t.Fatalf("expected (%v,%q,%v), got (%v,%q,%v)", tt.status, tt.winner, tt.finished, result.Status, result.Winner.String(), finished)
 			}
 		})
 	}
@@ -129,20 +131,20 @@ func TestCheckGameFinished(t *testing.T) {
 func TestUpdateGameStateDrawAndOWins(t *testing.T) {
 	service := &GameService{}
 	xWins := domain.Game{
-		Field:       domain.Field{{domain.CellX, domain.CellX, domain.CellX}, {domain.CellO, domain.CellO, domain.CellEmpty}, {domain.CellEmpty, domain.CellEmpty, domain.CellEmpty}},
-		PlayerXUUID: "user-x",
+		Field:   domain.Field{{domain.CellX, domain.CellX, domain.CellX}, {domain.CellO, domain.CellO, domain.CellEmpty}, {domain.CellEmpty, domain.CellEmpty, domain.CellEmpty}},
+		PlayerX: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174301")),
 	}
 	got := service.updateGameState(xWins)
-	if got.State != domain.GameStatePlayerWins || got.WinnerUUID != "user-x" || got.NextPlayerUUID != "" {
+	if got.State != domain.GameStatePlayerWins || got.Winner.String() != "123e4567-e89b-42d3-a456-426614174301" || !got.NextPlayer.IsZero() {
 		t.Fatalf("unexpected X win state: %#v", got)
 	}
 
 	oWins := domain.Game{
-		Field:       domain.Field{{domain.CellO, domain.CellX, domain.CellX}, {domain.CellEmpty, domain.CellO, domain.CellX}, {domain.CellEmpty, domain.CellEmpty, domain.CellO}},
-		PlayerOUUID: "user-o",
+		Field:   domain.Field{{domain.CellO, domain.CellX, domain.CellX}, {domain.CellEmpty, domain.CellO, domain.CellX}, {domain.CellEmpty, domain.CellEmpty, domain.CellO}},
+		PlayerO: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174302")),
 	}
 	got = service.updateGameState(oWins)
-	if got.State != domain.GameStatePlayerWins || got.WinnerUUID != "user-o" {
+	if got.State != domain.GameStatePlayerWins || got.Winner.String() != "123e4567-e89b-42d3-a456-426614174302" {
 		t.Fatalf("unexpected O win state: %#v", got)
 	}
 
@@ -152,7 +154,7 @@ func TestUpdateGameStateDrawAndOWins(t *testing.T) {
 		{domain.CellO, domain.CellX, domain.CellX},
 	}}
 	got = service.updateGameState(draw)
-	if got.State != domain.GameStateDraw || got.NextPlayerUUID != "" {
+	if got.State != domain.GameStateDraw || !got.NextPlayer.IsZero() {
 		t.Fatalf("unexpected draw state: %#v", got)
 	}
 }

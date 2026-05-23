@@ -3,11 +3,13 @@ package application
 import (
 	"context"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 )
 
 type RequestAuthorizer interface {
-	AuthorizeRequest(ctx context.Context, userUUID string, method string, path string) (bool, error)
+	AuthorizeRequest(ctx context.Context, userUUID googleuuid.UUID, method string, path string) (bool, error)
 }
 
 type RequestAuthorizationService struct {
@@ -22,7 +24,7 @@ func NewRequestAuthorizationService(authorization domain.AuthorizationService, p
 	}
 }
 
-func (s *RequestAuthorizationService) AuthorizeRequest(ctx context.Context, userUUID string, method string, path string) (bool, error) {
+func (s *RequestAuthorizationService) AuthorizeRequest(ctx context.Context, userUUID googleuuid.UUID, method string, path string) (bool, error) {
 	permission, ok := s.policy.ResolveRequestPermission(method, path)
 	if !ok {
 		return false, nil

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	googleuuid "github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"tic-tac-toe/app/domain"
@@ -68,15 +69,16 @@ func TestAuthServiceSignInCreatesSession(t *testing.T) {
 	}
 	store := newSessionStoreStub()
 	authz := &authorizationServiceStub{}
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	auth := newSessionAuthService(&userServiceStub{
-		user: domain.User{UUID: "user-1", Login: "player", Password: hash},
+		user: domain.User{UUID: userUUID.String(), Login: "player", Password: hash},
 	}, authz, store)
 
 	response, err := auth.SignIn(context.Background(), SessionRequest{Login: "player", Password: "secret"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if response.UserUUID != "user-1" || response.SessionID == "" || response.ExpiresAt.IsZero() {
+	if response.UserUUID != userUUID.String() || response.SessionID == "" || response.ExpiresAt.IsZero() {
 		t.Fatalf("unexpected session response: %#v", response)
 	}
 
@@ -84,17 +86,18 @@ func TestAuthServiceSignInCreatesSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected active session, got %v", err)
 	}
-	if session.UserUUID != "user-1" {
+	if session.UserUUID != userUUID.String() {
 		t.Fatalf("unexpected stored session: %#v", session)
 	}
-	if authz.grantDefaultRoleUUID != "user-1" {
-		t.Fatalf("expected default role grant for user-1, got %q", authz.grantDefaultRoleUUID)
+	if authz.grantDefaultRoleUUID != userUUID.String() {
+		t.Fatalf("expected default role grant for %s, got %q", userUUID, authz.grantDefaultRoleUUID)
 	}
 }
 
 func TestAuthServiceSignInMigratesPlaintextPassword(t *testing.T) {
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	users := &userServiceStub{
-		user: domain.User{UUID: "user-1", Login: "player", Password: "secret"},
+		user: domain.User{UUID: userUUID.String(), Login: "player", Password: "secret"},
 	}
 	auth := newSessionAuthService(users, nil, newSessionStoreStub())
 
@@ -102,10 +105,10 @@ func TestAuthServiceSignInMigratesPlaintextPassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if response.UserUUID != "user-1" || response.SessionID == "" {
+	if response.UserUUID != userUUID.String() || response.SessionID == "" {
 		t.Fatalf("unexpected response: %#v", response)
 	}
-	if users.updatedUUID != "user-1" {
+	if users.updatedUUID != userUUID.String() {
 		t.Fatalf("expected plaintext password migration, got updated=%q", users.updatedUUID)
 	}
 	if !isPasswordHash("secret", users.user.Password) {
@@ -118,8 +121,9 @@ func TestAuthServiceSignInRejectsInvalidCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to hash password: %v", err)
 	}
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	auth := newSessionAuthService(&userServiceStub{
-		user: domain.User{UUID: "user-1", Login: "player", Password: hash},
+		user: domain.User{UUID: userUUID.String(), Login: "player", Password: hash},
 	}, nil, newSessionStoreStub())
 
 	_, err = auth.SignIn(context.Background(), SessionRequest{Login: "player", Password: "wrong"})
@@ -143,8 +147,9 @@ func TestAuthServiceAuthenticateSession(t *testing.T) {
 		t.Fatalf("failed to hash password: %v", err)
 	}
 	store := newSessionStoreStub()
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	auth := newSessionAuthService(&userServiceStub{
-		user: domain.User{UUID: "user-1", Login: "player", Password: hash},
+		user: domain.User{UUID: userUUID.String(), Login: "player", Password: hash},
 	}, nil, store)
 
 	response, err := auth.SignIn(context.Background(), SessionRequest{Login: "player", Password: "secret"})
@@ -156,8 +161,8 @@ func TestAuthServiceAuthenticateSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected session auth error: %v", err)
 	}
-	if uuid != "user-1" {
-		t.Fatalf("expected user-1, got %q", uuid)
+	if uuid != userUUID.String() {
+		t.Fatalf("expected %s, got %q", userUUID, uuid)
 	}
 
 	users := &userServiceStub{getErr: domain.ErrUserNotFound}
@@ -173,8 +178,9 @@ func TestAuthServiceRefreshSessionRotatesSession(t *testing.T) {
 		t.Fatalf("failed to hash password: %v", err)
 	}
 	store := newSessionStoreStub()
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	auth := newSessionAuthService(&userServiceStub{
-		user: domain.User{UUID: "user-1", Login: "player", Password: hash},
+		user: domain.User{UUID: userUUID.String(), Login: "player", Password: hash},
 	}, nil, store)
 
 	first, err := auth.SignIn(context.Background(), SessionRequest{Login: "player", Password: "secret"})
@@ -203,8 +209,9 @@ func TestAuthServiceLogoutRevokesSession(t *testing.T) {
 		t.Fatalf("failed to hash password: %v", err)
 	}
 	store := newSessionStoreStub()
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	auth := newSessionAuthService(&userServiceStub{
-		user: domain.User{UUID: "user-1", Login: "player", Password: hash},
+		user: domain.User{UUID: userUUID.String(), Login: "player", Password: hash},
 	}, nil, store)
 
 	response, err := auth.SignIn(context.Background(), SessionRequest{Login: "player", Password: "secret"})
@@ -229,8 +236,9 @@ func TestAuthServiceLogoutAllRevokesAllSessions(t *testing.T) {
 		t.Fatalf("failed to hash password: %v", err)
 	}
 	store := newSessionStoreStub()
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	auth := newSessionAuthService(&userServiceStub{
-		user: domain.User{UUID: "user-1", Login: "player", Password: hash},
+		user: domain.User{UUID: userUUID.String(), Login: "player", Password: hash},
 	}, nil, store)
 
 	first, err := auth.SignIn(context.Background(), SessionRequest{Login: "player", Password: "secret"})

@@ -58,6 +58,12 @@ func (h *GameHandler) CreateGame(w http.ResponseWriter, r *http.Request) {
 		webresponse.WriteUnauthorized(w)
 		return
 	}
+	creatorUUID, ok := mustParseUUID(userUUID)
+	if !ok {
+		logHandler("%s %s invalid authenticated user uuid=%s", r.Method, r.URL.Path, userUUID)
+		webresponse.WriteUnauthorized(w)
+		return
+	}
 
 	request, err := h.decodeCreateRequest(r)
 	if err != nil {
@@ -73,14 +79,14 @@ func (h *GameHandler) CreateGame(w http.ResponseWriter, r *http.Request) {
 		mode = domain.GameModeComputer
 	}
 
-	uuid, err := newUUID()
+	uuid, err := googleuuid.NewRandom()
 	if err != nil {
 		logHandler("%s %s failed to generate game uuid: %v", r.Method, r.URL.Path, err)
 		webresponse.WriteInternalError(w, messages.FailedCreateGame)
 		return
 	}
 
-	game, err := h.commands.CreateGame(uuid, userUUID, mode)
+	game, err := h.commands.CreateGame(uuid, creatorUUID, mode)
 	if errors.Is(err, application.ErrInvalidGameMode) {
 		if h.writeCreateError(w, r, "invalid game mode="+string(mode)+" user="+userUUID, err.Error(), err, webresponse.WriteBadRequest) {
 			return
@@ -91,7 +97,7 @@ func (h *GameHandler) CreateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.writeCreateError(w, r, "save game failed for uuid="+uuid, messages.FailedSaveCurrentGame, h.storage.SaveGame(r.Context(), game), webresponse.WriteInternalError) {
+	if h.writeCreateError(w, r, "save game failed for uuid="+uuid.String(), messages.FailedSaveCurrentGame, h.storage.SaveGame(r.Context(), game), webresponse.WriteInternalError) {
 		return
 	}
 
@@ -112,17 +118,15 @@ func (h *GameHandler) CreateGame(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} dto.ErrorResponse "Game not found"
 // @Failure 500 {object} dto.ErrorResponse "Join was not saved"
 // @Router /games/{uuid}/join [post]
-func (h *GameHandler) JoinGame(w http.ResponseWriter, r *http.Request, uuid string) {
+func (h *GameHandler) JoinGame(w http.ResponseWriter, r *http.Request, uuid googleuuid.UUID) {
 	logHandler("%s %s join game request uuid=%s", r.Method, r.URL.Path, uuid)
-
-	if err := validateUUID(uuid); err != nil {
-		logHandler("%s %s invalid uuid=%s: %v", r.Method, r.URL.Path, uuid, err)
+	if uuid == googleuuid.Nil {
 		webresponse.WriteBadRequest(w, messages.InvalidUUID)
 		return
 	}
 
-	userUUID := middleware.UserUUIDFromContext(r.Context())
-	if userUUID == "" {
+	userUUID, ok := mustParseUUID(middleware.UserUUIDFromContext(r.Context()))
+	if !ok {
 		logHandler("%s %s unauthorized join game request uuid=%s", r.Method, r.URL.Path, uuid)
 		webresponse.WriteUnauthorized(w)
 		return
@@ -134,28 +138,28 @@ func (h *GameHandler) JoinGame(w http.ResponseWriter, r *http.Request, uuid stri
 		webresponse.WriteNotFound(w, messages.GameNotFound)
 		return
 	}
-	if h.writeJoinError(w, r, "failed to load game uuid="+uuid, messages.FailedLoadCurrentGame, err) {
+	if h.writeJoinError(w, r, "failed to load game uuid="+uuid.String(), messages.FailedLoadCurrentGame, err) {
 		return
 	}
 
 	_, err = h.commands.JoinGame(game, userUUID)
 	if err != nil {
-		logHandler("%s %s join validation failed uuid=%s user=%s: %v", r.Method, r.URL.Path, uuid, userUUID, err)
+		logHandler("%s %s join validation failed uuid=%s user=%s: %v", r.Method, r.URL.Path, uuid.String(), userUUID.String(), err)
 		webresponse.WriteBadRequest(w, err.Error())
 		return
 	}
 
 	game, err = h.storage.JoinGame(r.Context(), uuid, userUUID)
 	if errors.Is(err, domain.ErrGameNotJoinable) {
-		logHandler("%s %s game not joinable uuid=%s user=%s", r.Method, r.URL.Path, uuid, userUUID)
+		logHandler("%s %s game not joinable uuid=%s user=%s", r.Method, r.URL.Path, uuid.String(), userUUID.String())
 		webresponse.WriteBadRequest(w, messages.GameNotJoinable)
 		return
 	}
-	if h.writeJoinError(w, r, "failed to save join for uuid="+uuid+" user="+userUUID, messages.FailedSaveCurrentGame, err) {
+	if h.writeJoinError(w, r, "failed to save join for uuid="+uuid.String()+" user="+userUUID.String(), messages.FailedSaveCurrentGame, err) {
 		return
 	}
 
-	logHandler("%s %s joined game uuid=%s user=%s", r.Method, r.URL.Path, uuid, userUUID)
+	logHandler("%s %s joined game uuid=%s user=%s", r.Method, r.URL.Path, uuid.String(), userUUID.String())
 	h.writeGame(w, game)
 }
 
@@ -175,17 +179,15 @@ func (h *GameHandler) JoinGame(w http.ResponseWriter, r *http.Request, uuid stri
 // @Failure 415 {object} dto.ErrorResponse "Request body must be application/json"
 // @Failure 500 {object} dto.ErrorResponse "Move was not saved"
 // @Router /games/{uuid}/move [post]
-func (h *GameHandler) MakeMove(w http.ResponseWriter, r *http.Request, uuid string) {
+func (h *GameHandler) MakeMove(w http.ResponseWriter, r *http.Request, uuid googleuuid.UUID) {
 	logHandler("%s %s make move request uuid=%s", r.Method, r.URL.Path, uuid)
-
-	if err := validateUUID(uuid); err != nil {
-		logHandler("%s %s invalid uuid=%s: %v", r.Method, r.URL.Path, uuid, err)
+	if uuid == googleuuid.Nil {
 		webresponse.WriteBadRequest(w, messages.InvalidUUID)
 		return
 	}
 
-	userUUID := middleware.UserUUIDFromContext(r.Context())
-	if userUUID == "" {
+	userUUID, ok := mustParseUUID(middleware.UserUUIDFromContext(r.Context()))
+	if !ok {
 		logHandler("%s %s unauthorized move request uuid=%s", r.Method, r.URL.Path, uuid)
 		webresponse.WriteUnauthorized(w)
 		return
@@ -200,12 +202,12 @@ func (h *GameHandler) MakeMove(w http.ResponseWriter, r *http.Request, uuid stri
 		webresponse.WriteBadRequest(w, messages.InvalidRequestBody)
 		return
 	}
-	if request.UUID != googleuuid.Nil && request.UUID.String() != uuid {
+	if request.UUID != googleuuid.Nil && request.UUID.String() != uuid.String() {
 		logHandler("%s %s uuid mismatch path=%s body=%s", r.Method, r.URL.Path, uuid, request.UUID.String())
 		webresponse.WriteBadRequest(w, messages.UUIDMismatch)
 		return
 	}
-	request.UUID = googleuuid.MustParse(uuid)
+	request.UUID = uuid
 
 	previousGame, err := h.queries.GetGame(r.Context(), uuid)
 	if errors.Is(err, domain.ErrGameNotFound) {
@@ -213,26 +215,26 @@ func (h *GameHandler) MakeMove(w http.ResponseWriter, r *http.Request, uuid stri
 		webresponse.WriteNotFound(w, messages.GameNotFound)
 		return
 	}
-	if h.writeMoveError(w, r, "failed to load game uuid="+uuid, messages.FailedLoadCurrentGame, err, webresponse.WriteInternalError) {
+	if h.writeMoveError(w, r, "failed to load game uuid="+uuid.String(), messages.FailedLoadCurrentGame, err, webresponse.WriteInternalError) {
 		return
 	}
 
 	currentGame := domain.Game{UUID: request.UUID.String(), Field: domain.Field(request.Field)}
 	nextGame, err := h.commands.ApplyMove(previousGame, currentGame, userUUID)
-	if h.writeMoveError(w, r, "apply move failed uuid="+uuid+" user="+userUUID, "", err, webresponse.WriteBadRequest) {
+	if h.writeMoveError(w, r, "apply move failed uuid="+uuid.String()+" user="+userUUID.String(), "", err, webresponse.WriteBadRequest) {
 		return
 	}
 	err = h.storage.SaveGameIfUnchanged(r.Context(), previousGame, nextGame)
 	if errors.Is(err, domain.ErrGameConflict) {
-		logHandler("%s %s move conflict uuid=%s user=%s: %v", r.Method, r.URL.Path, uuid, userUUID, err)
+		logHandler("%s %s move conflict uuid=%s user=%s: %v", r.Method, r.URL.Path, uuid.String(), userUUID.String(), err)
 		webresponse.WriteConflict(w, messages.GameConflict)
 		return
 	}
-	if h.writeMoveError(w, r, "save move failed uuid="+uuid+" user="+userUUID, messages.FailedSaveCurrentGame, err, webresponse.WriteInternalError) {
+	if h.writeMoveError(w, r, "save move failed uuid="+uuid.String()+" user="+userUUID.String(), messages.FailedSaveCurrentGame, err, webresponse.WriteInternalError) {
 		return
 	}
 
-	logHandler("%s %s move applied uuid=%s user=%s next_state=%s winner=%s", r.Method, r.URL.Path, uuid, userUUID, nextGame.State, nextGame.WinnerUUID)
+	logHandler("%s %s move applied uuid=%s user=%s next_state=%s winner=%s", r.Method, r.URL.Path, uuid.String(), userUUID.String(), nextGame.State, nextGame.Winner.String())
 	h.writeGame(w, nextGame)
 }
 
@@ -277,8 +279,14 @@ func (h *GameHandler) ListCompletedGames(w http.ResponseWriter, r *http.Request)
 		webresponse.WriteUnauthorized(w)
 		return
 	}
+	parsedUserUUID, ok := mustParseUUID(userUUID)
+	if !ok {
+		logHandler("%s %s invalid authenticated user uuid=%s", r.Method, r.URL.Path, userUUID)
+		webresponse.WriteUnauthorized(w)
+		return
+	}
 
-	games, err := h.queries.ListCompletedGamesByUserUUID(r.Context(), userUUID)
+	games, err := h.queries.ListCompletedGamesByUserUUID(r.Context(), parsedUserUUID)
 	if h.writeLoadError(w, r, "failed to load completed games", messages.FailedLoadCompleted, err) {
 		return
 	}
@@ -331,11 +339,9 @@ func (h *GameHandler) ListTopPlayers(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} dto.ErrorResponse "Game not found"
 // @Failure 500 {object} dto.ErrorResponse "Game was not loaded"
 // @Router /games/{uuid} [get]
-func (h *GameHandler) GetGame(w http.ResponseWriter, r *http.Request, uuid string) {
+func (h *GameHandler) GetGame(w http.ResponseWriter, r *http.Request, uuid googleuuid.UUID) {
 	logHandler("%s %s get game request uuid=%s", r.Method, r.URL.Path, uuid)
-
-	if err := validateUUID(uuid); err != nil {
-		logHandler("%s %s invalid uuid=%s: %v", r.Method, r.URL.Path, uuid, err)
+	if uuid == googleuuid.Nil {
 		webresponse.WriteBadRequest(w, messages.InvalidUUID)
 		return
 	}
@@ -346,7 +352,7 @@ func (h *GameHandler) GetGame(w http.ResponseWriter, r *http.Request, uuid strin
 		webresponse.WriteNotFound(w, messages.GameNotFound)
 		return
 	}
-	if h.writeLoadError(w, r, "failed to load current game uuid="+uuid, messages.FailedLoadCurrentGame, err) {
+	if h.writeLoadError(w, r, "failed to load current game uuid="+uuid.String(), messages.FailedLoadCurrentGame, err) {
 		return
 	}
 

@@ -217,13 +217,13 @@ func TestGameHandlerMakeMove(t *testing.T) {
 
 	t.Run("makes move", func(t *testing.T) {
 		handler := newGameHandler(&logicStub{}, &storageStub{game: domain.Game{
-			UUID:           testUUID,
-			Field:          emptyDomainField(),
-			State:          domain.GameStatePlayerToMove,
-			NextPlayerUUID: "user-1",
-			PlayerXUUID:    "user-1",
-			PlayerOUUID:    domain.ComputerPlayerUUID,
-			Mode:           domain.GameModeComputer,
+			UUID:       testUUID,
+			Field:      emptyDomainField(),
+			State:      domain.GameStatePlayerToMove,
+			NextPlayer: domain.NewUserPlayerRef(googleuuid.MustParse(testUserUUID)),
+			PlayerX:    domain.NewUserPlayerRef(googleuuid.MustParse(testUserUUID)),
+			PlayerO:    domain.NewComputerPlayerRef(),
+			Mode:       domain.GameModeComputer,
 		}})
 		req := authenticatedRequest(http.MethodPost, "/games/"+testUUID+"/move", marshalBody(t, map[string]any{
 			"field": emptyFieldWithUserMove(),
@@ -254,7 +254,7 @@ func TestGameHandlerMakeMove(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/games/"+testUUID+"/move", marshalBody(t, map[string]any{"field": emptyField()}))
 		rec := httptest.NewRecorder()
 
-		handler.MakeMove(rec, req, testUUID)
+		handler.MakeMove(rec, req, googleuuid.MustParse(testUUID))
 
 		assertStatusAndMessage(t, rec, http.StatusUnauthorized, "unauthorized")
 	})

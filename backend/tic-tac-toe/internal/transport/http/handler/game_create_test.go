@@ -23,7 +23,7 @@ func TestGameHandlerCreateGame(t *testing.T) {
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("expected 201, got %d", rec.Code)
 		}
-		if storage.savedGame.Mode != domain.GameModeComputer || storage.savedGame.PlayerXUUID != "user-1" {
+		if storage.savedGame.Mode != domain.GameModeComputer || storage.savedGame.PlayerX.String() != testUserUUID {
 			t.Fatalf("unexpected saved game: %#v", storage.savedGame)
 		}
 	})

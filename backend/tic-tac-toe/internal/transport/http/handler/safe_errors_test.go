@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
+
 	authservice "tic-tac-toe/infrastructure/auth"
 )
 
@@ -138,7 +140,7 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := newGameHandler(&logicStub{}, &storageStub{getErr: errors.New(internalErrorText)})
 				req := authenticatedRequest(http.MethodGet, "/games/"+testUUID, nil)
-				handler.GetGame(rec, req, testUUID)
+				handler.GetGame(rec, req, googleuuid.MustParse(testUUID))
 			},
 			status:  http.StatusInternalServerError,
 			message: "failed to load current game",
@@ -148,7 +150,7 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := newGameHandler(&logicStub{}, &storageStub{getErr: errors.New(internalErrorText)})
 				req := authenticatedRequest(http.MethodPost, "/games/"+testUUID+"/join", nil)
-				handler.JoinGame(rec, req, testUUID)
+				handler.JoinGame(rec, req, googleuuid.MustParse(testUUID))
 			},
 			status:  http.StatusInternalServerError,
 			message: "failed to load current game",
@@ -158,7 +160,7 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := newGameHandler(&logicStub{}, &storageStub{getErr: errors.New(internalErrorText)})
 				req := authenticatedRequest(http.MethodPost, "/games/"+testUUID+"/move", marshalBody(t, map[string]any{"field": emptyField()}))
-				handler.MakeMove(rec, req, testUUID)
+				handler.MakeMove(rec, req, googleuuid.MustParse(testUUID))
 			},
 			status:  http.StatusInternalServerError,
 			message: "failed to load current game",
@@ -168,7 +170,7 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := NewUserHandler(&userServiceStub{err: errors.New(internalErrorText)})
 				req := authenticatedRequest(http.MethodGet, "/users/"+testUUID, nil)
-				handler.GetUser(rec, req, testUUID)
+				handler.GetUser(rec, req, googleuuid.MustParse(testUUID))
 			},
 			status:  http.StatusInternalServerError,
 			message: "failed to load user",

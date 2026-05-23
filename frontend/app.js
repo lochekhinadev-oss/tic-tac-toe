@@ -211,7 +211,10 @@ async function api(path, options = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(path, Object.assign({}, options, {
+  const normalizedPath = String(path || "").replace(/^\/+/, "");
+  const url = new URL(normalizedPath, document.baseURI).toString();
+
+  const response = await fetch(url, Object.assign({}, options, {
     headers,
     credentials: "include"
   }));

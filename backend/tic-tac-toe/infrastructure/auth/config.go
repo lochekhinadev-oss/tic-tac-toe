@@ -15,7 +15,7 @@ const (
 
 type AuthConfig struct {
 	SessionCookieName string
-	SessionTTL       time.Duration
+	SessionTTL        time.Duration
 }
 
 func (c AuthConfig) Validate() error {
@@ -31,6 +31,6 @@ func (c AuthConfig) Validate() error {
 func NewAuthConfig() AuthConfig {
 	return AuthConfig{
 		SessionCookieName: config.String("SESSION_COOKIE_NAME", defaultSessionCookie),
-		SessionTTL:       config.Duration("SESSION_TTL", defaultSessionTTL),
+		SessionTTL:        config.Duration("SESSION_TTL", defaultSessionTTL),
 	}
 }

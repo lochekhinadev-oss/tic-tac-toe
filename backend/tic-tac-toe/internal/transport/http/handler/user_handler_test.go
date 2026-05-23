@@ -28,15 +28,15 @@ func (s *userServiceStub) GetUserByLogin(context.Context, string) (domain.User, 
 	return s.user, s.err
 }
 
-func (s *userServiceStub) GetUserByUUID(context.Context, string) (domain.User, error) {
+func (s *userServiceStub) GetUserByUUID(context.Context, googleuuid.UUID) (domain.User, error) {
 	return s.user, s.err
 }
 
-func (s *userServiceStub) UpdatePassword(context.Context, string, string) error {
+func (s *userServiceStub) UpdatePassword(context.Context, googleuuid.UUID, string) error {
 	return s.err
 }
 
-func (s *userServiceStub) DeleteUser(context.Context, string) error {
+func (s *userServiceStub) DeleteUser(context.Context, googleuuid.UUID) error {
 	return s.deleteErr
 }
 
@@ -51,7 +51,7 @@ func TestUserHandlerGetUser(t *testing.T) {
 	req := authenticatedRequest(http.MethodGet, "/users/"+testUUID, nil)
 	rec := httptest.NewRecorder()
 
-	handler.GetUser(rec, req, testUUID)
+	handler.GetUser(rec, req, googleuuid.MustParse(testUUID))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
@@ -74,16 +74,16 @@ func TestUserHandlerGetUserErrors(t *testing.T) {
 	req := authenticatedRequest(http.MethodGet, "/users/"+testUUID, nil)
 	rec := httptest.NewRecorder()
 
-	handler.GetUser(rec, req, testUUID)
+	handler.GetUser(rec, req, googleuuid.MustParse(testUUID))
 	assertStatusAndMessage(t, rec, http.StatusNotFound, "user not found")
 
 	handler = NewUserHandler(&userServiceStub{err: errors.New("db failed")})
 	rec = httptest.NewRecorder()
-	handler.GetUser(rec, req, testUUID)
+	handler.GetUser(rec, req, googleuuid.MustParse(testUUID))
 	assertStatusAndMessage(t, rec, http.StatusInternalServerError, "failed to load user")
 
 	rec = httptest.NewRecorder()
-	handler.GetUser(rec, req, "not-a-uuid")
+	handler.GetUser(rec, req, googleuuid.Nil)
 	assertStatusAndMessage(t, rec, http.StatusBadRequest, "invalid uuid")
 }
 

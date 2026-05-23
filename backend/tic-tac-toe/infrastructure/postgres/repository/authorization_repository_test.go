@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -14,8 +15,9 @@ import (
 func TestAuthorizationRepositoryAssignRoleToUserBumpsVersion(t *testing.T) {
 	db := &authorizationDatabaseStub{execTag: pgconn.NewCommandTag("UPDATE 1")}
 	repo := NewAuthorizationRepository(db)
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 
-	if err := repo.AssignRoleToUser(context.Background(), "user-1", sqlInjectionPayload); err != nil {
+	if err := repo.AssignRoleToUser(context.Background(), userUUID, sqlInjectionPayload); err != nil {
 		t.Fatalf("unexpected assign error: %v", err)
 	}
 
@@ -28,8 +30,9 @@ func TestAuthorizationRepositoryAssignRoleToUserBumpsVersion(t *testing.T) {
 func TestAuthorizationRepositoryRevokeRoleFromUserBumpsVersion(t *testing.T) {
 	db := &authorizationDatabaseStub{execTag: pgconn.NewCommandTag("UPDATE 1")}
 	repo := NewAuthorizationRepository(db)
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 
-	if err := repo.RevokeRoleFromUser(context.Background(), "user-1", sqlInjectionPayload); err != nil {
+	if err := repo.RevokeRoleFromUser(context.Background(), userUUID, sqlInjectionPayload); err != nil {
 		t.Fatalf("unexpected revoke error: %v", err)
 	}
 
@@ -57,8 +60,9 @@ func TestAuthorizationRepositoryLoadPrincipalIncludesVersion(t *testing.T) {
 		},
 	}
 	repo := NewAuthorizationRepository(db)
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 
-	principal, err := repo.LoadPrincipal(context.Background(), "user-1")
+	principal, err := repo.LoadPrincipal(context.Background(), userUUID)
 	if err != nil {
 		t.Fatalf("unexpected load error: %v", err)
 	}
@@ -74,7 +78,7 @@ func TestAuthorizationRepositoryLoadPrincipalIncludesVersion(t *testing.T) {
 func TestAuthorizationRepositoryLoadsVersionErrors(t *testing.T) {
 	repo := NewAuthorizationRepository(&authorizationDatabaseStub{versionErr: errors.New("db failed")})
 
-	if _, err := repo.LoadPrincipal(context.Background(), "user-1"); err == nil {
+	if _, err := repo.LoadPrincipal(context.Background(), googleuuid.Nil); err == nil {
 		t.Fatal("expected error")
 	}
 }

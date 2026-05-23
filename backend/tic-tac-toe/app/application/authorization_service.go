@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 )
 
@@ -25,7 +27,7 @@ func NewAuthorizationService(repository domain.AuthorizationRepository) *Authori
 	}
 }
 
-func (s *AuthorizationService) GrantDefaultRole(ctx context.Context, userUUID string) error {
+func (s *AuthorizationService) GrantDefaultRole(ctx context.Context, userUUID googleuuid.UUID) error {
 	logApplication("grant default role user_uuid=%q", userUUID)
 	if err := s.GrantRoleToUser(ctx, userUUID, domain.DefaultPlayerRole); err != nil {
 		logApplication("grant default role failed user_uuid=%q: %v", userUUID, err)
@@ -35,7 +37,7 @@ func (s *AuthorizationService) GrantDefaultRole(ctx context.Context, userUUID st
 	return nil
 }
 
-func (s *AuthorizationService) GrantRoleToUser(ctx context.Context, userUUID string, roleName string) error {
+func (s *AuthorizationService) GrantRoleToUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error {
 	logApplication("grant role user_uuid=%q role=%q", userUUID, roleName)
 	if err := s.repository.AssignRoleToUser(ctx, userUUID, roleName); err != nil {
 		logApplication("grant role failed user_uuid=%q role=%q: %v", userUUID, roleName, err)
@@ -46,7 +48,7 @@ func (s *AuthorizationService) GrantRoleToUser(ctx context.Context, userUUID str
 	return nil
 }
 
-func (s *AuthorizationService) RevokeRoleFromUser(ctx context.Context, userUUID string, roleName string) error {
+func (s *AuthorizationService) RevokeRoleFromUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error {
 	logApplication("revoke role user_uuid=%q role=%q", userUUID, roleName)
 	if err := s.repository.RevokeRoleFromUser(ctx, userUUID, roleName); err != nil {
 		logApplication("revoke role failed user_uuid=%q role=%q: %v", userUUID, roleName, err)
@@ -57,7 +59,7 @@ func (s *AuthorizationService) RevokeRoleFromUser(ctx context.Context, userUUID 
 	return nil
 }
 
-func (s *AuthorizationService) LoadPrincipal(ctx context.Context, userUUID string) (domain.Principal, error) {
+func (s *AuthorizationService) LoadPrincipal(ctx context.Context, userUUID googleuuid.UUID) (domain.Principal, error) {
 	logApplication("load principal user_uuid=%q", userUUID)
 	if principal, ok, err := s.cachedPrincipal(ctx, userUUID); err != nil {
 		logApplication("load principal cache check failed user_uuid=%q: %v", userUUID, err)
@@ -77,7 +79,7 @@ func (s *AuthorizationService) LoadPrincipal(ctx context.Context, userUUID strin
 	return principal, nil
 }
 
-func (s *AuthorizationService) Can(ctx context.Context, userUUID string, permission domain.Permission) (bool, error) {
+func (s *AuthorizationService) Can(ctx context.Context, userUUID googleuuid.UUID, permission domain.Permission) (bool, error) {
 	logApplication("authorize user_uuid=%q resource=%q action=%q", userUUID, permission.Resource, permission.Action)
 	principal, err := s.LoadPrincipal(ctx, userUUID)
 	if err != nil {
@@ -99,9 +101,9 @@ type cachedPrincipal struct {
 	expiresAt time.Time
 }
 
-func (s *AuthorizationService) cachedPrincipal(ctx context.Context, userUUID string) (domain.Principal, bool, error) {
+func (s *AuthorizationService) cachedPrincipal(ctx context.Context, userUUID googleuuid.UUID) (domain.Principal, bool, error) {
 	s.cacheMu.Lock()
-	entry, ok := s.principalCache[userUUID]
+	entry, ok := s.principalCache[userUUID.String()]
 	s.cacheMu.Unlock()
 	if !ok {
 		return domain.Principal{}, false, nil
@@ -133,9 +135,9 @@ func (s *AuthorizationService) storePrincipalCache(principal domain.Principal) {
 	s.cacheMu.Unlock()
 }
 
-func (s *AuthorizationService) invalidatePrincipalCache(userUUID string) {
+func (s *AuthorizationService) invalidatePrincipalCache(userUUID googleuuid.UUID) {
 	s.cacheMu.Lock()
-	delete(s.principalCache, userUUID)
+	delete(s.principalCache, userUUID.String())
 	s.cacheMu.Unlock()
 }
 

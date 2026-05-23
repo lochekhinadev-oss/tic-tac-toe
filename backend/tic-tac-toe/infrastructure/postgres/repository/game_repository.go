@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	googleuuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -166,7 +167,7 @@ func (r *GameRepository) applyCompletedGameStats(ctx context.Context, executor s
 		return nil
 	}
 
-	_, err := executor.Exec(ctx, applyCompletedGameStatsQuery, game.UUID, game.PlayerXUUID, game.PlayerOUUID, string(game.State), game.WinnerUUID)
+	_, err := executor.Exec(ctx, applyCompletedGameStatsQuery, game.UUID, game.PlayerX.String(), game.PlayerO.String(), string(game.State), game.Winner.String())
 	if err != nil {
 		logGameRepository("apply completed game stats failed", "uuid=%q: %v", game.UUID, err)
 		return err
@@ -176,9 +177,9 @@ func (r *GameRepository) applyCompletedGameStats(ctx context.Context, executor s
 	return nil
 }
 
-func (r *GameRepository) GetGame(ctx context.Context, uuid string) (domain.Game, error) {
+func (r *GameRepository) GetGame(ctx context.Context, uuid googleuuid.UUID) (domain.Game, error) {
 	logGameRepository("get game", "uuid=%q", uuid)
-	game, err := r.queryGame(ctx, getGameQuery, uuid)
+	game, err := r.queryGame(ctx, getGameQuery, uuid.String())
 	if errors.Is(err, pgx.ErrNoRows) {
 		logGameRepository("get game not found", "uuid=%q", uuid)
 		return domain.Game{}, ErrGameNotFound
@@ -202,9 +203,9 @@ func (r *GameRepository) ListActiveGames(ctx context.Context) ([]domain.Game, er
 	return games, nil
 }
 
-func (r *GameRepository) ListCompletedGamesByUserUUID(ctx context.Context, userUUID string) ([]domain.Game, error) {
+func (r *GameRepository) ListCompletedGamesByUserUUID(ctx context.Context, userUUID googleuuid.UUID) ([]domain.Game, error) {
 	logGameRepository("list completed games", "user=%q", userUUID)
-	games, err := r.queryGames(ctx, "list completed games", listCompletedGamesByUserUUIDQuery, userUUID, string(domain.GameStatePlayerWins), string(domain.GameStateDraw))
+	games, err := r.queryGames(ctx, "list completed games", listCompletedGamesByUserUUIDQuery, userUUID.String(), string(domain.GameStatePlayerWins), string(domain.GameStateDraw))
 	if err != nil {
 		return nil, err
 	}
@@ -284,9 +285,9 @@ func cloneTopPlayers(players []domain.WonGameInfo) []domain.WonGameInfo {
 	return result
 }
 
-func (r *GameRepository) JoinGame(ctx context.Context, uuid string, userUUID string) (domain.Game, error) {
+func (r *GameRepository) JoinGame(ctx context.Context, uuid googleuuid.UUID, userUUID googleuuid.UUID) (domain.Game, error) {
 	logGameRepository("join game", "uuid=%q user=%q", uuid, userUUID)
-	game, err := r.queryGame(ctx, joinGameQuery, uuid, userUUID, string(domain.GameStatePlayerToMove), string(domain.GameModePlayer), string(domain.GameStateWaitingPlayers))
+	game, err := r.queryGame(ctx, joinGameQuery, uuid.String(), userUUID.String(), string(domain.GameStatePlayerToMove), string(domain.GameModePlayer), string(domain.GameStateWaitingPlayers))
 	if errors.Is(err, pgx.ErrNoRows) {
 		logGameRepository("join game not joinable", "uuid=%q user=%q", uuid, userUUID)
 		return domain.Game{}, ErrGameNotJoinable

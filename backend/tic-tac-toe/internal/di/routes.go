@@ -164,7 +164,7 @@ func openAPIJSON(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(docs.OpenAPIJSON)
 }
 
-func withUUID(next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+func withUUID(next func(http.ResponseWriter, *http.Request, googleuuid.UUID)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		rawUUID := chi.URLParam(r, "uuid")
 		parsedUUID, err := googleuuid.Parse(rawUUID)
@@ -172,7 +172,7 @@ func withUUID(next func(http.ResponseWriter, *http.Request, string)) http.Handle
 			webresponse.WriteBadRequest(w, messages.InvalidUUID)
 			return
 		}
-		next(w, r, parsedUUID.String())
+		next(w, r, parsedUUID)
 	}
 }
 

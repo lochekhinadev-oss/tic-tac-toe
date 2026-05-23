@@ -11,6 +11,6 @@ const (
 )
 
 type GameResult struct {
-	Status     GameStatus
-	WinnerUUID string
+	Status GameStatus
+	Winner PlayerRef
 }

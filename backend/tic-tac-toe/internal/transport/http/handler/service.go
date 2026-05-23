@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/auth"
 )
@@ -13,28 +15,28 @@ type GameStorage interface {
 }
 
 type GameCommandService interface {
-	CreateGame(uuid string, creatorUUID string, mode domain.GameMode) (domain.Game, error)
-	JoinGame(game domain.Game, userUUID string) (domain.Game, error)
-	ApplyMove(previous domain.Game, current domain.Game, userUUID string) (domain.Game, error)
+	CreateGame(uuid googleuuid.UUID, creatorUUID googleuuid.UUID, mode domain.GameMode) (domain.Game, error)
+	JoinGame(game domain.Game, userUUID googleuuid.UUID) (domain.Game, error)
+	ApplyMove(previous domain.Game, current domain.Game, userUUID googleuuid.UUID) (domain.Game, error)
 }
 
 type GameQueryService interface {
-	GetGame(ctx context.Context, uuid string) (domain.Game, error)
+	GetGame(ctx context.Context, uuid googleuuid.UUID) (domain.Game, error)
 	ListActiveGames(ctx context.Context) ([]domain.Game, error)
-	ListCompletedGamesByUserUUID(ctx context.Context, userUUID string) ([]domain.Game, error)
+	ListCompletedGamesByUserUUID(ctx context.Context, userUUID googleuuid.UUID) ([]domain.Game, error)
 	ListTopPlayers(ctx context.Context, limit int) ([]domain.WonGameInfo, error)
 }
 
 type GameCommandStorage interface {
 	SaveGame(ctx context.Context, game domain.Game) error
 	SaveGameIfUnchanged(ctx context.Context, previous domain.Game, next domain.Game) error
-	JoinGame(ctx context.Context, uuid string, userUUID string) (domain.Game, error)
+	JoinGame(ctx context.Context, uuid googleuuid.UUID, userUUID googleuuid.UUID) (domain.Game, error)
 }
 
 type GameQueryStorage interface {
-	GetGame(ctx context.Context, uuid string) (domain.Game, error)
+	GetGame(ctx context.Context, uuid googleuuid.UUID) (domain.Game, error)
 	ListActiveGames(ctx context.Context) ([]domain.Game, error)
-	ListCompletedGamesByUserUUID(ctx context.Context, userUUID string) ([]domain.Game, error)
+	ListCompletedGamesByUserUUID(ctx context.Context, userUUID googleuuid.UUID) ([]domain.Game, error)
 	ListTopPlayers(ctx context.Context, limit int) ([]domain.WonGameInfo, error)
 }
 
@@ -48,6 +50,6 @@ type AuthService interface {
 }
 
 type UserQueryService interface {
-	GetUserByUUID(ctx context.Context, uuid string) (domain.User, error)
-	DeleteUser(ctx context.Context, uuid string) error
+	GetUserByUUID(ctx context.Context, uuid googleuuid.UUID) (domain.User, error)
+	DeleteUser(ctx context.Context, uuid googleuuid.UUID) error
 }

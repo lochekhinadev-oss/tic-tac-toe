@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/postgres/repository"
 )
@@ -38,10 +40,10 @@ func TestGameHandlerListGames(t *testing.T) {
 func TestGameHandlerListCompletedGames(t *testing.T) {
 	t.Run("lists completed games", func(t *testing.T) {
 		handler := newGameHandler(&logicStub{}, &storageStub{history: []domain.Game{{
-			UUID:       testUUID,
-			Field:      emptyDomainField(),
-			State:      domain.GameStatePlayerWins,
-			WinnerUUID: "user-1",
+			UUID:   testUUID,
+			Field:  emptyDomainField(),
+			State:  domain.GameStatePlayerWins,
+			Winner: domain.NewUserPlayerRef(googleuuid.MustParse(testUserUUID)),
 		}}})
 		req := authenticatedRequest(http.MethodGet, "/games/history", nil)
 		rec := httptest.NewRecorder()
@@ -202,7 +204,7 @@ func TestGameHandlerGetGame(t *testing.T) {
 		req := authenticatedRequest(http.MethodGet, "/games/not-a-uuid", nil)
 		rec := httptest.NewRecorder()
 
-		handler.GetGame(rec, req, "not-a-uuid")
+		handler.GetGame(rec, req, googleuuid.Nil)
 
 		assertStatusAndMessage(t, rec, http.StatusBadRequest, "invalid uuid")
 	})

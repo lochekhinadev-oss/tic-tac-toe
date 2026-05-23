@@ -1027,8 +1027,8 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "",
-	BasePath:         "/",
-	Schemes:          []string{"http"},
+	BasePath:         "/tic-tac-toe",
+	Schemes:          []string{"https"},
 	Title:            "Tic-Tac-Toe API",
 	Description:      "HTTP API for user authentication and tic-tac-toe games.",
 	InfoInstanceName: "swagger",

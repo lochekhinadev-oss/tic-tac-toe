@@ -7,7 +7,9 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"regexp"
+	"strings"
+
+	googleuuid "github.com/google/uuid"
 
 	_ "tic-tac-toe/internal/logging"
 	"tic-tac-toe/internal/transport/http/messages"
@@ -18,7 +20,6 @@ var (
 	errInvalidRequestBody   = errors.New(messages.InvalidRequestBody)
 	errInvalidUUID          = errors.New(messages.InvalidUUID)
 	errUnsupportedMediaType = errors.New("unsupported media type")
-	uuidPattern             = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 	handlerLogPrefix        = "[transport/http/handler]"
 )
 
@@ -27,11 +28,27 @@ func logHandler(format string, args ...any) {
 }
 
 func validateUUID(uuid string) error {
-	if uuid == "" || !uuidPattern.MatchString(uuid) {
+	if _, err := parseUUID(uuid); err != nil {
 		return errInvalidUUID
 	}
 
 	return nil
+}
+
+func mustParseUUID(uuid string) (googleuuid.UUID, bool) {
+	parsed, err := parseUUID(uuid)
+	if err != nil {
+		return googleuuid.Nil, false
+	}
+	return parsed, true
+}
+
+func parseUUID(uuid string) (googleuuid.UUID, error) {
+	parsed, err := googleuuid.Parse(strings.TrimSpace(uuid))
+	if err != nil || parsed == googleuuid.Nil {
+		return googleuuid.Nil, errInvalidUUID
+	}
+	return parsed, nil
 }
 
 func decodeJSONBody[T any](r *http.Request) (T, error) {

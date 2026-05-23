@@ -8,8 +8,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
+
 	authservice "tic-tac-toe/infrastructure/auth"
 )
+
+const testUUID = "123e4567-e89b-42d3-a456-426614174000"
 
 type authServiceStub struct {
 	uuid string
@@ -22,22 +26,22 @@ func (s authServiceStub) AuthenticateSession(context.Context, string) (string, e
 
 type allowAllAuthorizerStub struct{}
 
-func (allowAllAuthorizerStub) AuthorizeRequest(context.Context, string, string, string) (bool, error) {
+func (allowAllAuthorizerStub) AuthorizeRequest(context.Context, googleuuid.UUID, string, string) (bool, error) {
 	return true, nil
 }
 
 type denyAuthorizerStub struct{}
 
-func (denyAuthorizerStub) AuthorizeRequest(context.Context, string, string, string) (bool, error) {
+func (denyAuthorizerStub) AuthorizeRequest(context.Context, googleuuid.UUID, string, string) (bool, error) {
 	return false, nil
 }
 
 func TestUserAuthenticatorProtectAllowsAuthorizedRequest(t *testing.T) {
-	authenticator := NewUserAuthenticator(authServiceStub{uuid: "user-1"}, allowAllAuthorizerStub{})
+	authenticator := NewUserAuthenticator(authServiceStub{uuid: testUUID}, allowAllAuthorizerStub{})
 	nextCalled := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
-		if got := UserUUIDFromContext(r.Context()); got != "user-1" {
+		if got := UserUUIDFromContext(r.Context()); got != testUUID {
 			t.Fatalf("expected user uuid in context, got %q", got)
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -82,7 +86,7 @@ func TestUserAuthenticatorProtectHandlesAuthServiceError(t *testing.T) {
 }
 
 func TestUserAuthenticatorProtectRejectsForbiddenRequest(t *testing.T) {
-	authenticator := NewUserAuthenticator(authServiceStub{uuid: "user-1"}, denyAuthorizerStub{})
+	authenticator := NewUserAuthenticator(authServiceStub{uuid: testUUID}, denyAuthorizerStub{})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/games", nil)
 	req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})

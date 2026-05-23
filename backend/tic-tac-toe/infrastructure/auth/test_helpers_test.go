@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/postgres/repository"
 )
@@ -88,12 +90,12 @@ func (s *userServiceStub) GetUserByLogin(context.Context, string) (domain.User, 
 	return s.user, s.getErr
 }
 
-func (s *userServiceStub) GetUserByUUID(context.Context, string) (domain.User, error) {
+func (s *userServiceStub) GetUserByUUID(context.Context, googleuuid.UUID) (domain.User, error) {
 	return s.user, s.getErr
 }
 
-func (s *userServiceStub) UpdatePassword(_ context.Context, uuid string, password string) error {
-	s.updatedUUID = uuid
+func (s *userServiceStub) UpdatePassword(_ context.Context, uuid googleuuid.UUID, password string) error {
+	s.updatedUUID = uuid.String()
 	hash, err := hashPassword(password)
 	if err != nil {
 		return err
@@ -102,7 +104,7 @@ func (s *userServiceStub) UpdatePassword(_ context.Context, uuid string, passwor
 	return s.updateErr
 }
 
-func (s *userServiceStub) DeleteUser(context.Context, string) error {
+func (s *userServiceStub) DeleteUser(context.Context, googleuuid.UUID) error {
 	return s.deleteErr
 }
 
@@ -121,22 +123,24 @@ type authorizationServiceStub struct {
 	grantDefaultRoleUUID string
 }
 
-func (s *authorizationServiceStub) GrantDefaultRole(_ context.Context, userUUID string) error {
-	s.grantDefaultRoleUUID = userUUID
+func (s *authorizationServiceStub) GrantDefaultRole(_ context.Context, userUUID googleuuid.UUID) error {
+	s.grantDefaultRoleUUID = userUUID.String()
 	return s.grantDefaultRoleErr
 }
 
-func (s *authorizationServiceStub) GrantRoleToUser(context.Context, string, string) error { return nil }
-
-func (s *authorizationServiceStub) RevokeRoleFromUser(context.Context, string, string) error {
+func (s *authorizationServiceStub) GrantRoleToUser(context.Context, googleuuid.UUID, string) error {
 	return nil
 }
 
-func (s *authorizationServiceStub) LoadPrincipal(context.Context, string) (domain.Principal, error) {
+func (s *authorizationServiceStub) RevokeRoleFromUser(context.Context, googleuuid.UUID, string) error {
+	return nil
+}
+
+func (s *authorizationServiceStub) LoadPrincipal(context.Context, googleuuid.UUID) (domain.Principal, error) {
 	return domain.Principal{}, nil
 }
 
-func (s *authorizationServiceStub) Can(context.Context, string, domain.Permission) (bool, error) {
+func (s *authorizationServiceStub) Can(context.Context, googleuuid.UUID, domain.Permission) (bool, error) {
 	return true, nil
 }
 

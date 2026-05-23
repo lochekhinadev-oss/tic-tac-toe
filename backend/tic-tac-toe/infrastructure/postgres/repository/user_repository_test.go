@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"tic-tac-toe/app/domain"
@@ -27,21 +28,22 @@ func TestUserRepositorySaveGetAndUpdate(t *testing.T) {
 	}
 	assertUser(t, user, sampleUser())
 
-	user, err = repo.GetUserByUUID(context.Background(), "user-1")
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+	user, err = repo.GetUserByUUID(context.Background(), userUUID)
 	if err != nil {
 		t.Fatalf("unexpected get by uuid error: %v", err)
 	}
 	assertPassword(t, user.Password, sampleUser().Password)
 
-	if err := repo.UpdateUserPassword(context.Background(), "user-1", "new-hash"); err != nil {
+	if err := repo.UpdateUserPassword(context.Background(), userUUID, "new-hash"); err != nil {
 		t.Fatalf("unexpected update error: %v", err)
 	}
-	assertSavedArgs(t, db.savedArgs, "user-1", "new-hash")
+	assertSavedArgs(t, db.savedArgs, userUUID.String(), "new-hash")
 
-	if err := repo.DeleteUser(context.Background(), "user-1"); err != nil {
+	if err := repo.DeleteUser(context.Background(), userUUID); err != nil {
 		t.Fatalf("unexpected delete error: %v", err)
 	}
-	assertSavedArgs(t, db.savedArgs, "user-1")
+	assertSavedArgs(t, db.savedArgs, userUUID.String())
 }
 
 func TestUserRepositoryNotFound(t *testing.T) {
@@ -49,7 +51,7 @@ func TestUserRepositoryNotFound(t *testing.T) {
 	if _, err := repo.GetUserByLogin(context.Background(), "missing"); !errors.Is(err, ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
-	if _, err := repo.GetUserByUUID(context.Background(), "missing"); !errors.Is(err, ErrUserNotFound) {
+	if _, err := repo.GetUserByUUID(context.Background(), googleuuid.Nil); !errors.Is(err, ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }
@@ -85,7 +87,8 @@ func TestUserRepositoryUsesParameterizedQueries(t *testing.T) {
 		db := &databaseStub{}
 		repo := NewUserRepository(db)
 
-		err := repo.UpdateUserPassword(context.Background(), "user-1", sqlInjectionPayload)
+		userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+		err := repo.UpdateUserPassword(context.Background(), userUUID, sqlInjectionPayload)
 		if err != nil {
 			t.Fatalf("unexpected update error: %v", err)
 		}
@@ -97,14 +100,17 @@ func TestUserRepositoryUsesParameterizedQueries(t *testing.T) {
 	t.Run("delete user", func(t *testing.T) {
 		db := &databaseStub{}
 		repo := NewUserRepository(db)
+		userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 
-		err := repo.DeleteUser(context.Background(), sqlInjectionPayload)
+		err := repo.DeleteUser(context.Background(), userUUID)
 		if err != nil {
 			t.Fatalf("unexpected delete error: %v", err)
 		}
 
 		assertQueryDoesNotContainPayload(t, db.lastExecQuery)
-		assertArgsContainPayload(t, db.savedArgs)
+		if len(db.savedArgs) != 1 || db.savedArgs[0] != userUUID.String() {
+			t.Fatalf("expected uuid argument, got %#v", db.savedArgs)
+		}
 	})
 }
 

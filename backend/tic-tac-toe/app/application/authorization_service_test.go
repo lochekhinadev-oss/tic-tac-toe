@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 )
 
@@ -19,24 +21,24 @@ type authorizationRepositoryStub struct {
 	loadErr        error
 }
 
-func (s *authorizationRepositoryStub) AssignRoleToUser(_ context.Context, userUUID string, roleName string) error {
-	s.assignUserUUID = userUUID
+func (s *authorizationRepositoryStub) AssignRoleToUser(_ context.Context, userUUID googleuuid.UUID, roleName string) error {
+	s.assignUserUUID = userUUID.String()
 	s.assignRoleName = roleName
 	return s.assignErr
 }
 
-func (s *authorizationRepositoryStub) RevokeRoleFromUser(_ context.Context, userUUID string, roleName string) error {
-	s.assignUserUUID = userUUID
+func (s *authorizationRepositoryStub) RevokeRoleFromUser(_ context.Context, userUUID googleuuid.UUID, roleName string) error {
+	s.assignUserUUID = userUUID.String()
 	s.assignRoleName = roleName
 	return s.assignErr
 }
 
-func (s *authorizationRepositoryStub) LoadPrincipalVersion(context.Context, string) (int64, error) {
+func (s *authorizationRepositoryStub) LoadPrincipalVersion(context.Context, googleuuid.UUID) (int64, error) {
 	s.versionCalls++
 	return s.version, s.versionErr
 }
 
-func (s *authorizationRepositoryStub) LoadPrincipal(context.Context, string) (domain.Principal, error) {
+func (s *authorizationRepositoryStub) LoadPrincipal(context.Context, googleuuid.UUID) (domain.Principal, error) {
 	return s.principal, s.loadErr
 }
 
@@ -44,10 +46,11 @@ func TestAuthorizationServiceGrantDefaultRole(t *testing.T) {
 	repo := &authorizationRepositoryStub{}
 	service := NewAuthorizationService(repo)
 
-	if err := service.GrantDefaultRole(context.Background(), "user-1"); err != nil {
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+	if err := service.GrantDefaultRole(context.Background(), userUUID); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if repo.assignUserUUID != "user-1" || repo.assignRoleName != domain.DefaultPlayerRole {
+	if repo.assignUserUUID != userUUID.String() || repo.assignRoleName != domain.DefaultPlayerRole {
 		t.Fatalf("unexpected assign call: %#v", repo)
 	}
 }
@@ -56,19 +59,21 @@ func TestAuthorizationServiceRevokeRoleFromUser(t *testing.T) {
 	repo := &authorizationRepositoryStub{}
 	service := NewAuthorizationService(repo)
 
-	if err := service.RevokeRoleFromUser(context.Background(), "user-1", "admin"); err != nil {
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+	if err := service.RevokeRoleFromUser(context.Background(), userUUID, "admin"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if repo.assignUserUUID != "user-1" || repo.assignRoleName != "admin" {
+	if repo.assignUserUUID != userUUID.String() || repo.assignRoleName != "admin" {
 		t.Fatalf("unexpected revoke call: %#v", repo)
 	}
 }
 
 func TestAuthorizationServiceCan(t *testing.T) {
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	repo := &authorizationRepositoryStub{
 		version: 7,
 		principal: domain.Principal{
-			UserUUID:     "user-1",
+			UserUUID:     userUUID.String(),
 			AuthzVersion: 7,
 			Roles:        []string{domain.DefaultPlayerRole},
 			Permissions: []domain.Permission{
@@ -78,8 +83,7 @@ func TestAuthorizationServiceCan(t *testing.T) {
 		},
 	}
 	service := NewAuthorizationService(repo)
-
-	allowed, err := service.Can(context.Background(), "user-1", domain.Permission{Resource: "games", Action: "create"})
+	allowed, err := service.Can(context.Background(), userUUID, domain.Permission{Resource: "games", Action: "create"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -87,7 +91,7 @@ func TestAuthorizationServiceCan(t *testing.T) {
 		t.Fatal("expected permission to be allowed")
 	}
 
-	allowed, err = service.Can(context.Background(), "user-1", domain.Permission{Resource: "games", Action: "move"})
+	allowed, err = service.Can(context.Background(), userUUID, domain.Permission{Resource: "games", Action: "move"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,18 +104,18 @@ func TestAuthorizationServiceCan(t *testing.T) {
 }
 
 func TestAuthorizationServiceUsesCachedPrincipalUntilVersionChanges(t *testing.T) {
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	repo := &authorizationRepositoryStub{
 		version: 1,
 		principal: domain.Principal{
-			UserUUID:     "user-1",
+			UserUUID:     userUUID.String(),
 			AuthzVersion: 1,
 			Roles:        []string{domain.DefaultPlayerRole},
 			Permissions:  []domain.Permission{{Resource: "games", Action: "create"}},
 		},
 	}
 	service := NewAuthorizationService(repo)
-
-	allowed, err := service.Can(context.Background(), "user-1", domain.Permission{Resource: "games", Action: "create"})
+	allowed, err := service.Can(context.Background(), userUUID, domain.Permission{Resource: "games", Action: "create"})
 	if err != nil || !allowed {
 		t.Fatalf("unexpected first authorize result: allowed=%v err=%v", allowed, err)
 	}
@@ -119,7 +123,7 @@ func TestAuthorizationServiceUsesCachedPrincipalUntilVersionChanges(t *testing.T
 		t.Fatalf("expected no version check on first cache fill, got %d", repo.versionCalls)
 	}
 
-	allowed, err = service.Can(context.Background(), "user-1", domain.Permission{Resource: "games", Action: "create"})
+	allowed, err = service.Can(context.Background(), userUUID, domain.Permission{Resource: "games", Action: "create"})
 	if err != nil || !allowed {
 		t.Fatalf("unexpected second authorize result: allowed=%v err=%v", allowed, err)
 	}
@@ -131,7 +135,7 @@ func TestAuthorizationServiceUsesCachedPrincipalUntilVersionChanges(t *testing.T
 	repo.principal.AuthzVersion = 2
 	repo.principal.Permissions = []domain.Permission{{Resource: "games", Action: "move"}}
 
-	allowed, err = service.Can(context.Background(), "user-1", domain.Permission{Resource: "games", Action: "create"})
+	allowed, err = service.Can(context.Background(), userUUID, domain.Permission{Resource: "games", Action: "create"})
 	if err != nil {
 		t.Fatalf("unexpected third authorize error: %v", err)
 	}
@@ -146,10 +150,11 @@ func TestAuthorizationServiceUsesCachedPrincipalUntilVersionChanges(t *testing.T
 func TestAuthorizationServicePropagatesErrors(t *testing.T) {
 	service := NewAuthorizationService(&authorizationRepositoryStub{loadErr: errors.New("db failed")})
 
-	if _, err := service.LoadPrincipal(context.Background(), "user-1"); err == nil {
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
+	if _, err := service.LoadPrincipal(context.Background(), userUUID); err == nil {
 		t.Fatal("expected error")
 	}
-	if _, err := service.Can(context.Background(), "user-1", domain.Permission{Resource: "games", Action: "create"}); err == nil {
+	if _, err := service.Can(context.Background(), userUUID, domain.Permission{Resource: "games", Action: "create"}); err == nil {
 		t.Fatal("expected error")
 	}
 }

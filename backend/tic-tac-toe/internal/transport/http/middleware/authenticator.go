@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/application"
 	"tic-tac-toe/infrastructure/auth"
 	"tic-tac-toe/internal/transport/http/messages"
@@ -43,7 +45,15 @@ func (a *UserAuthenticator) Protect(next http.Handler) http.Handler {
 			return
 		}
 
-		allowed, err := a.authorizeRequest(r, uuid)
+		userUUID, err := googleuuid.Parse(uuid)
+		if err != nil {
+			writeAuthMiddlewareError(w, r, "invalid authenticated user uuid", err, func(w http.ResponseWriter) {
+				webresponse.WriteInternalError(w, messages.FailedAuthenticateUser)
+			})
+			return
+		}
+
+		allowed, err := a.authorizeRequest(r, userUUID)
 		if err != nil {
 			writeAuthMiddlewareError(w, r, "authz failed", err, func(w http.ResponseWriter) {
 				webresponse.WriteInternalError(w, messages.FailedAuthorizeUser)
@@ -69,7 +79,7 @@ func (a *UserAuthenticator) authenticateRequest(r *http.Request) (string, error)
 	return "", auth.ErrInvalidToken
 }
 
-func (a *UserAuthenticator) authorizeRequest(r *http.Request, userUUID string) (bool, error) {
+func (a *UserAuthenticator) authorizeRequest(r *http.Request, userUUID googleuuid.UUID) (bool, error) {
 	if a.authorizer == nil {
 		return true, nil
 	}

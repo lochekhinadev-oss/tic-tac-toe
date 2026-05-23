@@ -1,4 +1,4 @@
-basePath: /
+basePath: /tic-tac-toe
 definitions:
   dto.AuthRequest:
     properties:
@@ -680,7 +680,7 @@ paths:
       tags:
       - users
 schemes:
-- http
+- https
 securityDefinitions:
   SessionCookieAuth:
     in: cookie

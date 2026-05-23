@@ -4,25 +4,28 @@ import (
 	"errors"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 )
 
 func TestApplyMoveAllowsSecondPlayerO(t *testing.T) {
 	service := NewGameService()
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
 	previous := domain.Game{
-		UUID:           "game-1",
-		Field:          emptyField(),
-		Mode:           domain.GameModePlayer,
-		State:          domain.GameStatePlayerToMove,
-		NextPlayerUUID: "user-o",
-		PlayerXUUID:    "user-x",
-		PlayerOUUID:    "user-o",
+		UUID:       "game-1",
+		Field:      emptyField(),
+		Mode:       domain.GameModePlayer,
+		State:      domain.GameStatePlayerToMove,
+		NextPlayer: domain.NewUserPlayerRef(userUUID),
+		PlayerX:    domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")),
+		PlayerO:    domain.NewUserPlayerRef(userUUID),
 	}
 	current := previous
 	current.Field = cloneField(previous.Field)
 	current.Field[0][0] = domain.CellO
 
-	next, err := service.ApplyMove(previous, current, "user-o")
+	next, err := service.ApplyMove(previous, current, userUUID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -30,21 +33,23 @@ func TestApplyMoveAllowsSecondPlayerO(t *testing.T) {
 	if next.Field[0][0] != domain.CellO {
 		t.Fatalf("expected O move to be accepted, got %#v", next.Field)
 	}
-	if next.NextPlayerUUID != "user-x" {
-		t.Fatalf("expected next turn for user-x, got %q", next.NextPlayerUUID)
+	if next.NextPlayer.String() != "123e4567-e89b-42d3-a456-426614174002" {
+		t.Fatalf("expected next turn for user-x, got %q", next.NextPlayer.String())
 	}
 }
 
 func TestApplyMoveRejectsInvalidStatesAndUsers(t *testing.T) {
 	service := NewGameService()
+	userUUIDX := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")
+	userUUIDO := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174003")
 	base := domain.Game{
-		UUID:           "game-1",
-		Field:          emptyField(),
-		Mode:           domain.GameModePlayer,
-		State:          domain.GameStatePlayerToMove,
-		NextPlayerUUID: "user-x",
-		PlayerXUUID:    "user-x",
-		PlayerOUUID:    "user-o",
+		UUID:       "game-1",
+		Field:      emptyField(),
+		Mode:       domain.GameModePlayer,
+		State:      domain.GameStatePlayerToMove,
+		NextPlayer: domain.NewUserPlayerRef(userUUIDX),
+		PlayerX:    domain.NewUserPlayerRef(userUUIDX),
+		PlayerO:    domain.NewUserPlayerRef(userUUIDO),
 	}
 	current := base
 	current.Field = cloneField(base.Field)
@@ -53,14 +58,20 @@ func TestApplyMoveRejectsInvalidStatesAndUsers(t *testing.T) {
 	tests := []struct {
 		name string
 		game domain.Game
-		user string
+		user googleuuid.UUID
 		err  error
 	}{
-		{name: "empty user", game: base, user: "", err: ErrInvalidUUID},
-		{name: "waiting players", game: func() domain.Game { g := base; g.State = domain.GameStateWaitingPlayers; return g }(), user: "user-x", err: ErrGameNotJoinable},
-		{name: "finished", game: func() domain.Game { g := base; g.State = domain.GameStateDraw; return g }(), user: "user-x", err: ErrGameAlreadyFinished},
-		{name: "wrong turn", game: base, user: "user-o", err: ErrNotPlayerTurn},
-		{name: "not player", game: func() domain.Game { g := base; g.NextPlayerUUID = "stranger"; return g }(), user: "stranger", err: ErrUserNotGamePlayer},
+		{name: "empty user", game: base, user: googleuuid.Nil, err: ErrInvalidUUID},
+		{name: "waiting players", game: func() domain.Game { g := base; g.State = domain.GameStateWaitingPlayers; return g }(), user: userUUIDX, err: ErrGameNotJoinable},
+		{name: "finished", game: func() domain.Game { g := base; g.State = domain.GameStateDraw; return g }(), user: userUUIDX, err: ErrGameAlreadyFinished},
+		{name: "wrong turn", game: base, user: userUUIDO, err: ErrNotPlayerTurn},
+		{name: "not player", game: func() domain.Game {
+			g := base
+			g.NextPlayer = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174004"))
+			g.PlayerX = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174005"))
+			g.PlayerO = domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174006"))
+			return g
+		}(), user: googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174004"), err: ErrUserNotGamePlayer},
 	}
 
 	for _, tt := range tests {
@@ -75,6 +86,7 @@ func TestApplyMoveRejectsInvalidStatesAndUsers(t *testing.T) {
 
 func TestApplyMoveLegacyGameMetadataAndWin(t *testing.T) {
 	service := NewGameService()
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")
 	previous := domain.Game{UUID: "game-1", Field: domain.Field{
 		{domain.CellX, domain.CellX, domain.CellEmpty},
 		{domain.CellO, domain.CellO, domain.CellEmpty},
@@ -84,32 +96,33 @@ func TestApplyMoveLegacyGameMetadataAndWin(t *testing.T) {
 	current.Field = cloneField(previous.Field)
 	current.Field[0][2] = domain.CellX
 
-	next, err := service.ApplyMove(previous, current, "user-x")
+	next, err := service.ApplyMove(previous, current, userUUID)
 	if err != nil {
 		t.Fatalf("unexpected apply move error: %v", err)
 	}
-	if next.State != domain.GameStatePlayerWins || next.WinnerUUID != "user-x" {
+	if next.State != domain.GameStatePlayerWins || next.Winner.String() != userUUID.String() {
 		t.Fatalf("unexpected winning game: %#v", next)
 	}
 }
 
 func TestApplyMoveRejectsChangedPreviousMove(t *testing.T) {
 	service := NewGameService()
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")
 	previous := domain.Game{
-		UUID:           "game-1",
-		Field:          emptyField(),
-		Mode:           domain.GameModePlayer,
-		State:          domain.GameStatePlayerToMove,
-		NextPlayerUUID: "user-x",
-		PlayerXUUID:    "user-x",
-		PlayerOUUID:    "user-o",
+		UUID:       "game-1",
+		Field:      emptyField(),
+		Mode:       domain.GameModePlayer,
+		State:      domain.GameStatePlayerToMove,
+		NextPlayer: domain.NewUserPlayerRef(userUUID),
+		PlayerX:    domain.NewUserPlayerRef(userUUID),
+		PlayerO:    domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174003")),
 	}
 	previous.Field[0][0] = domain.CellX
 	current := previous
 	current.Field = cloneField(previous.Field)
 	current.Field[0][0] = domain.CellO
 
-	_, err := service.ApplyMove(previous, current, "user-x")
+	_, err := service.ApplyMove(previous, current, userUUID)
 	if !errors.Is(err, ErrPreviousMovesChanged) {
 		t.Fatalf("expected ErrPreviousMovesChanged, got %v", err)
 	}
@@ -117,24 +130,25 @@ func TestApplyMoveRejectsChangedPreviousMove(t *testing.T) {
 
 func TestApplyMoveLetsComputerRespondAndReturnTurn(t *testing.T) {
 	service := NewGameService()
+	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")
 	previous := domain.Game{
-		UUID:           "game-1",
-		Field:          emptyField(),
-		Mode:           domain.GameModeComputer,
-		State:          domain.GameStatePlayerToMove,
-		NextPlayerUUID: "user-x",
-		PlayerXUUID:    "user-x",
-		PlayerOUUID:    domain.ComputerPlayerUUID,
+		UUID:       "game-1",
+		Field:      emptyField(),
+		Mode:       domain.GameModeComputer,
+		State:      domain.GameStatePlayerToMove,
+		NextPlayer: domain.NewUserPlayerRef(userUUID),
+		PlayerX:    domain.NewUserPlayerRef(userUUID),
+		PlayerO:    domain.NewComputerPlayerRef(),
 	}
 	current := previous
 	current.Field = cloneField(previous.Field)
 	current.Field[0][0] = domain.CellX
 
-	next, err := service.ApplyMove(previous, current, "user-x")
+	next, err := service.ApplyMove(previous, current, userUUID)
 	if err != nil {
 		t.Fatalf("unexpected apply move error: %v", err)
 	}
-	if next.NextPlayerUUID != "user-x" || next.State != domain.GameStatePlayerToMove {
+	if next.NextPlayer.String() != userUUID.String() || next.State != domain.GameStatePlayerToMove {
 		t.Fatalf("expected turn to return to user-x, got %#v", next)
 	}
 

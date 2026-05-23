@@ -90,7 +90,7 @@ func TestBuildDatasourceGameRejectsInvalidRows(t *testing.T) {
 				sql.NullString{},
 				sql.NullString{},
 				sql.NullString{String: "user-x", Valid: true},
-				sql.NullString{String: domain.ComputerPlayerUUID, Valid: true},
+				sql.NullString{String: "computer", Valid: true},
 			)
 			if !errors.Is(err, ErrInvalidDatabaseRow) {
 				t.Fatalf("expected ErrInvalidDatabaseRow, got %v", err)

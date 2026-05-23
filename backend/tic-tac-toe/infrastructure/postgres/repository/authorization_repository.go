@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"strings"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/postgres/datasource"
 )
@@ -55,13 +57,13 @@ func NewAuthorizationRepository(db datasource.Database) domain.AuthorizationRepo
 	return &PostgresAuthorizationRepository{db: db}
 }
 
-func (r *PostgresAuthorizationRepository) AssignRoleToUser(ctx context.Context, userUUID string, roleName string) error {
+func (r *PostgresAuthorizationRepository) AssignRoleToUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error {
 	logRepository("assign role user_uuid=%q role=%q", userUUID, roleName)
-	if strings.TrimSpace(userUUID) == "" || strings.TrimSpace(roleName) == "" {
+	if userUUID == googleuuid.Nil || strings.TrimSpace(roleName) == "" {
 		return ErrInvalidDatabaseRow
 	}
 
-	if _, err := r.db.Exec(ctx, assignRoleToUserQuery, userUUID, roleName); err != nil {
+	if _, err := r.db.Exec(ctx, assignRoleToUserQuery, userUUID.String(), roleName); err != nil {
 		logRepository("assign role failed user_uuid=%q role=%q: %v", userUUID, roleName, err)
 		return err
 	}
@@ -69,13 +71,13 @@ func (r *PostgresAuthorizationRepository) AssignRoleToUser(ctx context.Context, 
 	return nil
 }
 
-func (r *PostgresAuthorizationRepository) RevokeRoleFromUser(ctx context.Context, userUUID string, roleName string) error {
+func (r *PostgresAuthorizationRepository) RevokeRoleFromUser(ctx context.Context, userUUID googleuuid.UUID, roleName string) error {
 	logRepository("revoke role user_uuid=%q role=%q", userUUID, roleName)
-	if strings.TrimSpace(userUUID) == "" || strings.TrimSpace(roleName) == "" {
+	if userUUID == googleuuid.Nil || strings.TrimSpace(roleName) == "" {
 		return ErrInvalidDatabaseRow
 	}
 
-	if _, err := r.db.Exec(ctx, revokeRoleFromUserQuery, userUUID, roleName); err != nil {
+	if _, err := r.db.Exec(ctx, revokeRoleFromUserQuery, userUUID.String(), roleName); err != nil {
 		logRepository("revoke role failed user_uuid=%q role=%q: %v", userUUID, roleName, err)
 		return err
 	}
@@ -83,14 +85,14 @@ func (r *PostgresAuthorizationRepository) RevokeRoleFromUser(ctx context.Context
 	return nil
 }
 
-func (r *PostgresAuthorizationRepository) LoadPrincipalVersion(ctx context.Context, userUUID string) (int64, error) {
+func (r *PostgresAuthorizationRepository) LoadPrincipalVersion(ctx context.Context, userUUID googleuuid.UUID) (int64, error) {
 	logRepository("load principal version user_uuid=%q", userUUID)
-	if strings.TrimSpace(userUUID) == "" {
+	if userUUID == googleuuid.Nil {
 		return 0, ErrInvalidDatabaseRow
 	}
 
 	var scannedVersion sql.NullInt64
-	if err := r.db.QueryRow(ctx, loadPrincipalVersionQuery, userUUID).Scan(&scannedVersion); err != nil {
+	if err := r.db.QueryRow(ctx, loadPrincipalVersionQuery, userUUID.String()).Scan(&scannedVersion); err != nil {
 		logRepository("load principal version failed user_uuid=%q: %v", userUUID, err)
 		return 0, err
 	}
@@ -103,9 +105,9 @@ func (r *PostgresAuthorizationRepository) LoadPrincipalVersion(ctx context.Conte
 	return authzVersion, nil
 }
 
-func (r *PostgresAuthorizationRepository) LoadPrincipal(ctx context.Context, userUUID string) (domain.Principal, error) {
+func (r *PostgresAuthorizationRepository) LoadPrincipal(ctx context.Context, userUUID googleuuid.UUID) (domain.Principal, error) {
 	logRepository("load principal user_uuid=%q", userUUID)
-	if strings.TrimSpace(userUUID) == "" {
+	if userUUID == googleuuid.Nil {
 		return domain.Principal{}, ErrInvalidDatabaseRow
 	}
 
@@ -114,7 +116,7 @@ func (r *PostgresAuthorizationRepository) LoadPrincipal(ctx context.Context, use
 		return domain.Principal{}, err
 	}
 
-	roleRows, err := r.db.Query(ctx, loadPrincipalRolesQuery, userUUID)
+	roleRows, err := r.db.Query(ctx, loadPrincipalRolesQuery, userUUID.String())
 	if err != nil {
 		logRepository("load principal roles failed user_uuid=%q: %v", userUUID, err)
 		return domain.Principal{}, err
@@ -140,7 +142,7 @@ func (r *PostgresAuthorizationRepository) LoadPrincipal(ctx context.Context, use
 		return domain.Principal{}, err
 	}
 
-	permissionRows, err := r.db.Query(ctx, loadPrincipalPermissionsQuery, userUUID)
+	permissionRows, err := r.db.Query(ctx, loadPrincipalPermissionsQuery, userUUID.String())
 	if err != nil {
 		logRepository("load principal permissions failed user_uuid=%q: %v", userUUID, err)
 		return domain.Principal{}, err
@@ -177,7 +179,7 @@ func (r *PostgresAuthorizationRepository) LoadPrincipal(ctx context.Context, use
 	}
 
 	principal := domain.Principal{
-		UserUUID:     userUUID,
+		UserUUID:     userUUID.String(),
 		AuthzVersion: authzVersion,
 		Roles:        roles,
 		Permissions:  permissions,

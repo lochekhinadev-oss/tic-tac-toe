@@ -18,18 +18,16 @@ const (
 	GameStatePlayerWins     GameState = "player_wins"
 )
 
-const ComputerPlayerUUID = "computer"
-
 type Game struct {
-	UUID           string    `db:"uuid"`
-	Field          Field     `db:"field"`
-	Mode           GameMode  `db:"mode"`
-	State          GameState `db:"state"`
-	CreatedAt      time.Time `db:"created_at"`
-	NextPlayerUUID string    `db:"next_player_uuid"`
-	WinnerUUID     string    `db:"winner_uuid"`
-	PlayerXUUID    string    `db:"player_x_uuid"`
-	PlayerOUUID    string    `db:"player_o_uuid"`
+	UUID       string    `db:"uuid"`
+	Field      Field     `db:"field"`
+	Mode       GameMode  `db:"mode"`
+	State      GameState `db:"state"`
+	CreatedAt  time.Time `db:"created_at"`
+	NextPlayer PlayerRef `db:"next_player_uuid"`
+	Winner     PlayerRef `db:"winner_uuid"`
+	PlayerX    PlayerRef `db:"player_x_uuid"`
+	PlayerO    PlayerRef `db:"player_o_uuid"`
 }
 
 type WonGameInfo struct {

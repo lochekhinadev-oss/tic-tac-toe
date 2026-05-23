@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	googleuuid "github.com/google/uuid"
+
 	"tic-tac-toe/app/application"
 	"tic-tac-toe/app/domain"
 	"tic-tac-toe/infrastructure/postgres/repository"
@@ -14,11 +16,11 @@ import (
 func TestGameHandlerJoinGame(t *testing.T) {
 	t.Run("joins waiting player game", func(t *testing.T) {
 		game := domain.Game{
-			UUID:        testUUID,
-			Field:       emptyDomainField(),
-			Mode:        domain.GameModePlayer,
-			State:       domain.GameStateWaitingPlayers,
-			PlayerXUUID: "user-x",
+			UUID:    testUUID,
+			Field:   emptyDomainField(),
+			Mode:    domain.GameModePlayer,
+			State:   domain.GameStateWaitingPlayers,
+			PlayerX: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")),
 		}
 		handler := newGameHandler(&logicStub{}, &storageStub{game: game})
 		req := authenticatedRequest(http.MethodPost, "/games/"+testUUID+"/join", nil)
@@ -43,11 +45,11 @@ func TestGameHandlerJoinGame(t *testing.T) {
 
 	t.Run("not joinable", func(t *testing.T) {
 		handler := newGameHandler(&logicStub{}, &storageStub{game: domain.Game{
-			UUID:        testUUID,
-			Field:       emptyDomainField(),
-			Mode:        domain.GameModeComputer,
-			State:       domain.GameStatePlayerToMove,
-			PlayerXUUID: "user-x",
+			UUID:    testUUID,
+			Field:   emptyDomainField(),
+			Mode:    domain.GameModeComputer,
+			State:   domain.GameStatePlayerToMove,
+			PlayerX: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")),
 		}})
 		req := authenticatedRequest(http.MethodPost, "/games/"+testUUID+"/join", nil)
 		rec := httptest.NewRecorder()
@@ -59,11 +61,11 @@ func TestGameHandlerJoinGame(t *testing.T) {
 
 	t.Run("save error", func(t *testing.T) {
 		game := domain.Game{
-			UUID:        testUUID,
-			Field:       emptyDomainField(),
-			Mode:        domain.GameModePlayer,
-			State:       domain.GameStateWaitingPlayers,
-			PlayerXUUID: "user-x",
+			UUID:    testUUID,
+			Field:   emptyDomainField(),
+			Mode:    domain.GameModePlayer,
+			State:   domain.GameStateWaitingPlayers,
+			PlayerX: domain.NewUserPlayerRef(googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174002")),
 		}
 		handler := newGameHandler(&logicStub{}, &storageStub{game: game, saveErr: errors.New("save failed")})
 		req := authenticatedRequest(http.MethodPost, "/games/"+testUUID+"/join", nil)
