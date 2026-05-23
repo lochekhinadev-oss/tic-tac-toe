@@ -42,28 +42,6 @@ func TestHandlersDoNotExposeInternalErrors(t *testing.T) {
 			message: "failed to authenticate user",
 		},
 		{
-			name: "refresh access",
-			handlerCall: func(rec *httptest.ResponseRecorder) {
-				handler := NewAuthHandler(authHandlerServiceStub{refreshErr: errors.New(internalErrorText)})
-				_, req := newAuthRequest(http.MethodPost, "/auth/tokens/access", "")
-				req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
-				handler.RefreshAccessToken(rec, req)
-			},
-			status:  http.StatusInternalServerError,
-			message: "failed to refresh access token",
-		},
-		{
-			name: "refresh refresh",
-			handlerCall: func(rec *httptest.ResponseRecorder) {
-				handler := NewAuthHandler(authHandlerServiceStub{refreshErr: errors.New(internalErrorText)})
-				_, req := newAuthRequest(http.MethodPost, "/auth/tokens/refresh", "")
-				req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
-				handler.RefreshRefreshToken(rec, req)
-			},
-			status:  http.StatusInternalServerError,
-			message: "failed to refresh refresh token",
-		},
-		{
 			name: "logout",
 			handlerCall: func(rec *httptest.ResponseRecorder) {
 				handler := NewAuthHandler(authHandlerServiceStub{logoutErr: errors.New(internalErrorText)})

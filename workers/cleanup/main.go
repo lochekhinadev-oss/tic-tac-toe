@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,7 +11,6 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -44,19 +42,6 @@ type config struct {
 type database interface {
 	Ping(ctx context.Context) error
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
-}
-
-type cleanupMetrics struct {
-	mu            sync.Mutex
-	startedAt     time.Time
-	lastRunAt     time.Time
-	lastSuccessAt time.Time
-	lastDuration  time.Duration
-	usersDeleted  int64
-	gamesDeleted  int64
-	runCount      int64
-	successCount  int64
-	lastError     string
 }
 
 type cleanupResult struct {
@@ -270,45 +255,6 @@ func envInt(name string, fallback int) int {
 	return parsed
 }
 
-func newCleanupMetrics() *cleanupMetrics {
-	return &cleanupMetrics{startedAt: time.Now().UTC()}
-}
-
-func (m *cleanupMetrics) record(startedAt time.Time, result cleanupResult, err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.lastRunAt = startedAt
-	m.lastDuration = time.Since(startedAt)
-	m.runCount++
-	m.usersDeleted += result.UsersDeleted
-	m.gamesDeleted += result.GamesDeleted
-	if err != nil {
-		m.lastError = err.Error()
-		return
-	}
-	m.successCount++
-	m.lastSuccessAt = time.Now().UTC()
-	m.lastError = ""
-}
-
-func (m *cleanupMetrics) snapshot() map[string]any {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return map[string]any{
-		"startedAt":      m.startedAt,
-		"lastRunAt":      m.lastRunAt,
-		"lastSuccessAt":  m.lastSuccessAt,
-		"lastDurationMs": m.lastDuration.Milliseconds(),
-		"usersDeleted":   m.usersDeleted,
-		"gamesDeleted":   m.gamesDeleted,
-		"runCount":       m.runCount,
-		"successCount":   m.successCount,
-		"lastError":      m.lastError,
-	}
-}
-
 func startMetricsServer(ctx context.Context, addr string, metrics *cleanupMetrics) {
 	if strings.TrimSpace(addr) == "" || metrics == nil {
 		return
@@ -320,10 +266,7 @@ func startMetricsServer(ctx context.Context, addr string, metrics *cleanupMetric
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\n"))
 	})
-	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(metrics.snapshot())
-	})
+	mux.Handle("/metrics", metrics.handler())
 
 	server := &http.Server{
 		Addr:    addr,

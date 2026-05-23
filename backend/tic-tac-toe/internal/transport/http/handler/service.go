@@ -43,7 +43,6 @@ type GameQueryStorage interface {
 type AuthService interface {
 	SignUp(ctx context.Context, request auth.SignUpRequest) (bool, error)
 	SignIn(ctx context.Context, request auth.SessionRequest) (auth.SessionResponse, error)
-	RefreshSession(ctx context.Context, sessionID string) (auth.SessionResponse, error)
 	Logout(ctx context.Context, sessionID string) error
 	LogoutAll(ctx context.Context, sessionID string) error
 	AuthenticateSession(ctx context.Context, sessionID string) (string, error)

@@ -21,13 +21,11 @@ const deleteConfirmYesButton = document.getElementById("delete-confirm-yes");
 const deleteConfirmCancelButtons = document.querySelectorAll("[data-delete-cancel]");
 const loginInput = document.getElementById("login");
 const passwordInput = document.getElementById("password");
+const youNameNode = document.getElementById("you-name");
 const youSymbolNode = document.getElementById("you-symbol");
+const computerNameNode = document.getElementById("computer-name");
 const computerSymbolNode = document.getElementById("computer-symbol");
 const sessionNode = document.getElementById("session-id");
-
-const storageKeys = {
-  gameID: "tic-tac-toe.gameID"
-};
 
 let gameID = "";
 let userUUID = "";
@@ -87,6 +85,12 @@ function updateStatus(message) {
 }
 
 function updateUser() {
+  if (youNameNode) {
+    youNameNode.textContent = "You";
+  }
+  if (computerNameNode) {
+    computerNameNode.textContent = currentGame && currentGame.mode === "player" ? "Opponent" : "Computer";
+  }
   youSymbolNode.textContent = "🐾";
   computerSymbolNode.textContent = "○";
 }
@@ -145,7 +149,6 @@ function clearGameState() {
   currentGame = null;
   board = createEmptyBoard();
   finished = false;
-  localStorage.removeItem(storageKeys.gameID);
   updateSession();
   renderBoard();
 }
@@ -278,7 +281,6 @@ function syncState(game) {
   currentGame = game;
   board = game.field;
   gameID = game.uuid;
-  localStorage.setItem(storageKeys.gameID, gameID);
   updateUser();
   updateSession();
 

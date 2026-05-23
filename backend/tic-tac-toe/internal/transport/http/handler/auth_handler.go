@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -103,30 +102,6 @@ func (h *AuthHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 	webresponse.WriteJSON(w, http.StatusCreated, dto.SignUpResponse{Success: true})
 }
 
-// RefreshAccessToken renews the current session cookie.
-// @Summary Refresh session
-// @Tags auth
-// @Produce json
-// @Success 200 {object} dto.AuthResponse "Authenticated user"
-// @Failure 401 {object} dto.ErrorResponse "Invalid session"
-// @Failure 500 {object} dto.ErrorResponse "Session renewal failed"
-// @Router /auth/tokens/access [post]
-func (h *AuthHandler) RefreshAccessToken(w http.ResponseWriter, r *http.Request) {
-	h.refreshSession(w, r, h.auth.RefreshSession, messages.FailedRefreshAccess)
-}
-
-// RefreshRefreshToken refreshes the current session cookie.
-// @Summary Refresh session
-// @Tags auth
-// @Produce json
-// @Success 200 {object} dto.AuthResponse "Authenticated user"
-// @Failure 401 {object} dto.ErrorResponse "Invalid session"
-// @Failure 500 {object} dto.ErrorResponse "Session renewal failed"
-// @Router /auth/tokens/refresh [post]
-func (h *AuthHandler) RefreshRefreshToken(w http.ResponseWriter, r *http.Request) {
-	h.refreshSession(w, r, h.auth.RefreshSession, messages.FailedRefreshRefresh)
-}
-
 // Logout revokes the active session.
 // @Summary Logout
 // @Tags auth
@@ -175,23 +150,6 @@ func (h *AuthHandler) LogoutAll(w http.ResponseWriter, r *http.Request) {
 	clearSessionCookie(w, r)
 	logHandler("%s %s logout all completed", r.Method, r.URL.Path)
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *AuthHandler) refreshSession(w http.ResponseWriter, r *http.Request, refresh func(context.Context, string) (auth.SessionResponse, error), internalMessage string) {
-	logHandler("%s %s session refresh request", r.Method, r.URL.Path)
-
-	sessionID, ok := decodeSessionID(w, r, "refresh")
-	if !ok {
-		return
-	}
-
-	response, err := refresh(r.Context(), sessionID)
-	if handleSessionActionError(w, r, "refresh", err, internalMessage) {
-		return
-	}
-
-	setSessionCookie(w, r, response.SessionID, response.ExpiresAt)
-	webresponse.WriteJSON(w, http.StatusOK, dto.AuthResponse{UUID: uuidFromString(response.UserUUID)})
 }
 
 func decodeLoginRequest(w http.ResponseWriter, r *http.Request) (dto.AuthRequest, bool) {

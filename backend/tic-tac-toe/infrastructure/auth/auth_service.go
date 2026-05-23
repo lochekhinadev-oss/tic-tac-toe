@@ -126,28 +126,6 @@ func (s *service) SignIn(ctx context.Context, request SessionRequest) (SessionRe
 	return session, nil
 }
 
-func (s *service) RefreshSession(ctx context.Context, sessionID string) (SessionResponse, error) {
-	logAuth("refresh session request")
-	session, user, err := s.activeSessionBySessionID(ctx, sessionID)
-	if err != nil {
-		return SessionResponse{}, err
-	}
-
-	if err := s.sessions.RevokeSession(ctx, session.RefreshJTIHash); err != nil {
-		logAuth("refresh session revoke old failed", "user_uuid", user.UUID, "error", err)
-		return SessionResponse{}, err
-	}
-
-	refreshed, err := s.issueCookieSession(ctx, user)
-	if err != nil {
-		logAuth("refresh session create new failed", "user_uuid", user.UUID, "error", err)
-		return SessionResponse{}, err
-	}
-
-	logAuth("refresh session ok", "user_uuid", user.UUID)
-	return refreshed, nil
-}
-
 func (s *service) Logout(ctx context.Context, sessionID string) error {
 	logAuth("logout request")
 	session, user, err := s.activeSessionBySessionID(ctx, sessionID)

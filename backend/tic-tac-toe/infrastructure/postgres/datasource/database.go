@@ -140,6 +140,7 @@ func (m databaseManager) runMigrations(databaseURL string) error {
 func (m databaseManager) runGoose(db *sql.DB) error {
 	m = m.withDefaults()
 	goose.SetBaseFS(migrationsFS)
+	goose.SetLogger(goose.NopLogger())
 
 	if err := m.setDialect("postgres"); err != nil {
 		return fmt.Errorf("%s: %w", errSetGooseDialect, err)

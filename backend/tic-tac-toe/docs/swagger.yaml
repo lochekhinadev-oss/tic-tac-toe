@@ -255,46 +255,6 @@ paths:
       summary: Logout
       tags:
       - auth
-  /auth/tokens/access:
-    post:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Authenticated user
-          schema:
-            $ref: '#/definitions/dto.AuthResponse'
-        "401":
-          description: Invalid session
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "500":
-          description: Session renewal failed
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-      summary: Refresh session
-      tags:
-      - auth
-  /auth/tokens/refresh:
-    post:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Authenticated user
-          schema:
-            $ref: '#/definitions/dto.AuthResponse'
-        "401":
-          description: Invalid session
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "500":
-          description: Session renewal failed
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-      summary: Refresh session
-      tags:
-      - auth
   /games:
     get:
       description: Returns active games visible to authenticated users. Request body

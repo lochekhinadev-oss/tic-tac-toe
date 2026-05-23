@@ -18,7 +18,7 @@ func TestBodySizeLimitRejectsOversizedBody(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/auth", strings.NewReader("12345"))
+	req := httptest.NewRequest(http.MethodPost, "/auth/sessions", strings.NewReader("12345"))
 
 	handler.ServeHTTP(rec, req)
 

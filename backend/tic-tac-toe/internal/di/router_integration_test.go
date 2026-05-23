@@ -31,12 +31,12 @@ func TestRouterSystemEndpoints(t *testing.T) {
 	}{
 		{name: "health", method: http.MethodGet, path: "/healthz", status: http.StatusOK, wantJSONKey: "status"},
 		{name: "ready", method: http.MethodGet, path: "/readyz", status: http.StatusOK, wantJSONKey: "status"},
-		{name: "metrics", method: http.MethodGet, path: "/metrics", status: http.StatusOK, contains: "httpRequests"},
+		{name: "metrics", method: http.MethodGet, path: "/metrics", status: http.StatusOK, contains: "tic_tac_toe_http_requests_total"},
 		{name: "swagger ui", method: http.MethodGet, path: "/swagger", status: http.StatusOK, contains: "SwaggerUIBundle"},
 		{name: "openapi yaml", method: http.MethodGet, path: "/openapi.yaml", status: http.StatusOK, contains: "swagger: \"2.0\""},
 		{name: "openapi json", method: http.MethodGet, path: "/swagger/doc.json", status: http.StatusOK, contains: `"swagger": "2.0"`},
 		{name: "not found", method: http.MethodGet, path: "/missing", status: http.StatusNotFound, message: "not found"},
-		{name: "method not allowed", method: http.MethodGet, path: "/auth", status: http.StatusMethodNotAllowed, message: "method not allowed"},
+		{name: "method not allowed", method: http.MethodGet, path: "/users", status: http.StatusMethodNotAllowed, message: "method not allowed"},
 	}
 
 	for _, tt := range tests {

@@ -45,10 +45,6 @@ func (authStub) SignIn(context.Context, authservice.SessionRequest) (authservice
 	return authservice.SessionResponse{UserUUID: "123e4567-e89b-42d3-a456-426614174000", SessionID: "session-1"}, nil
 }
 
-func (authStub) RefreshSession(context.Context, string) (authservice.SessionResponse, error) {
-	return authservice.SessionResponse{UserUUID: "123e4567-e89b-42d3-a456-426614174000", SessionID: "session-2"}, nil
-}
-
 func (authStub) Logout(context.Context, string) error { return nil }
 
 func (authStub) LogoutAll(context.Context, string) error { return nil }
@@ -72,10 +68,6 @@ func (deniedAuthStub) SignUp(context.Context, authservice.SignUpRequest) (bool, 
 }
 
 func (deniedAuthStub) SignIn(context.Context, authservice.SessionRequest) (authservice.SessionResponse, error) {
-	return authservice.SessionResponse{}, nil
-}
-
-func (deniedAuthStub) RefreshSession(context.Context, string) (authservice.SessionResponse, error) {
 	return authservice.SessionResponse{}, nil
 }
 

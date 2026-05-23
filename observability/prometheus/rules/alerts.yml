@@ -1,0 +1,116 @@
+groups:
+  - name: tic-tac-toe.runtime
+    rules:
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: Backend scrape target is down
+          description: Prometheus cannot scrape the backend /metrics endpoint.
+
+      - alert: CleanupDown
+        expr: up{job="cleanup"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: cleanup
+        annotations:
+          summary: Cleanup worker scrape target is down
+          description: Prometheus cannot scrape the cleanup worker /metrics endpoint.
+
+      - alert: PostgresExporterDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgres-exporter
+        annotations:
+          summary: Postgres exporter scrape target is down
+          description: Prometheus cannot scrape postgres-exporter.
+
+      - alert: RedisExporterDown
+        expr: up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis-exporter
+        annotations:
+          summary: Redis exporter scrape target is down
+          description: Prometheus cannot scrape redis-exporter.
+
+  - name: tic-tac-toe.api
+    rules:
+      - alert: BackendHigh5xxRate
+        expr: sum(rate(tic_tac_toe_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(tic_tac_toe_http_requests_total[5m])), 1) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: Backend 5xx rate is high
+          description: More than 5% of backend HTTP requests are returning 5xx responses over the last 5 minutes.
+
+      - alert: BackendP95LatencyHigh
+        expr: histogram_quantile(0.95, sum by (le, route) (rate(tic_tac_toe_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: Backend p95 latency is high
+          description: At least one backend route has p95 latency above 1 second for 10 minutes.
+
+      - alert: AuthErrorsSpike
+        expr: sum(rate(tic_tac_toe_auth_events_total{event="auth_error"}[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: Auth errors are spiking
+          description: Auth errors are occurring at a sustained rate higher than expected.
+
+      - alert: AuthzDeniedSpike
+        expr: sum(rate(tic_tac_toe_auth_events_total{event="authz_rejected"}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: Authorization denials are spiking
+          description: Authorization denials are occurring at a sustained rate higher than expected.
+
+  - name: tic-tac-toe.cleanup
+    rules:
+      - alert: CleanupFailureObserved
+        expr: increase(tic_tac_toe_cleanup_runs_total{result="failure"}[15m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: cleanup
+        annotations:
+          summary: Cleanup worker failed
+          description: The cleanup worker reported at least one failed run in the last 15 minutes.
+
+      - alert: CleanupStale
+        expr: time() - tic_tac_toe_cleanup_last_success_timestamp_seconds > 36 * 3600
+        for: 5m
+        labels:
+          severity: critical
+          service: cleanup
+        annotations:
+          summary: Cleanup worker has not completed successfully
+          description: The cleanup worker has not recorded a successful run for more than 36 hours.
+
+      - alert: CleanupSlow
+        expr: histogram_quantile(0.95, sum by (le) (rate(tic_tac_toe_cleanup_duration_seconds_bucket[1h]))) > 30
+        for: 15m
+        labels:
+          severity: warning
+          service: cleanup
+        annotations:
+          summary: Cleanup worker is slow
+          description: Cleanup p95 duration is above 30 seconds over the last hour.

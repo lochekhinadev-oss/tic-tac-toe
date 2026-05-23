@@ -174,37 +174,6 @@ func TestAuthServiceAuthenticateSession(t *testing.T) {
 	}
 }
 
-func TestAuthServiceRefreshSessionRotatesSession(t *testing.T) {
-	hash, err := hashPassword("secret")
-	if err != nil {
-		t.Fatalf("failed to hash password: %v", err)
-	}
-	store := newSessionStoreStub()
-	userUUID := googleuuid.MustParse("123e4567-e89b-42d3-a456-426614174001")
-	auth := newSessionAuthService(&userServiceStub{
-		user: domain.User{UUID: userUUID.String(), Login: "player", Password: hash},
-	}, nil, store)
-
-	first, err := auth.SignIn(context.Background(), SessionRequest{Login: "player", Password: "secret"})
-	if err != nil {
-		t.Fatalf("sign in: %v", err)
-	}
-
-	refreshed, err := auth.RefreshSession(context.Background(), first.SessionID)
-	if err != nil {
-		t.Fatalf("refresh: %v", err)
-	}
-	if refreshed.SessionID == first.SessionID {
-		t.Fatal("expected rotated session id")
-	}
-	if !store.revoked[hashTokenID(first.SessionID)] {
-		t.Fatal("expected old session to be revoked")
-	}
-	if _, err := store.FindActiveSessionByRefreshJTIHash(context.Background(), hashTokenID(refreshed.SessionID)); err != nil {
-		t.Fatalf("expected new active session, got %v", err)
-	}
-}
-
 func TestAuthServiceLogoutRevokesSession(t *testing.T) {
 	hash, err := hashPassword("secret")
 	if err != nil {
@@ -279,9 +248,6 @@ func TestAuthServiceLogsDoNotLeakSecrets(t *testing.T) {
 	response, err := auth.SignIn(context.Background(), SessionRequest{Login: "player", Password: "secret"})
 	if err != nil {
 		t.Fatalf("sign in: %v", err)
-	}
-	if _, err := auth.RefreshSession(context.Background(), response.SessionID); err != nil {
-		t.Fatalf("refresh: %v", err)
 	}
 	if err := auth.Logout(context.Background(), response.SessionID); err != nil && !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("logout: %v", err)

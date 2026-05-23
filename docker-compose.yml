@@ -51,6 +51,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    ports:
+      - "9091:9091"
     expose:
       - "9091"
     restart: unless-stopped
@@ -59,6 +61,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
 
   db:
     image: postgres:16-alpine

@@ -61,7 +61,6 @@ func TestNewRouter(t *testing.T) {
 		{method: http.MethodGet, path: "/swagger/doc.json", status: http.StatusOK},
 		{method: http.MethodPost, path: "/users", body: `{"login":"player","password":"secret"}`, status: http.StatusCreated},
 		{method: http.MethodPost, path: "/auth/sessions", body: `{"login":"player","password":"secret"}`, status: http.StatusOK},
-		{method: http.MethodPost, path: "/signup", body: `{"login":"player","password":"secret"}`, status: http.StatusCreated},
 		{method: http.MethodGet, path: "/missing", status: http.StatusNotFound},
 		{method: http.MethodPost, path: "/games", cookie: true, status: http.StatusCreated},
 		{method: http.MethodGet, path: "/games", cookie: true, status: http.StatusOK},

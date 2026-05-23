@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,21 +52,22 @@ func TestRunCleanupDeletesOldDataInBatches(t *testing.T) {
 		t.Fatal("expected cutoff to be passed")
 	}
 
-	snapshot := metrics.snapshot()
-	if snapshot["runCount"].(int64) != 1 {
-		t.Fatalf("expected one run, got %#v", snapshot["runCount"])
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metrics.handler().ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	for _, want := range []string{
+		"tic_tac_toe_cleanup_runs_total{result=\"success\"} 1",
+		"tic_tac_toe_cleanup_deleted_rows_total{entity=\"users\"} 3",
+		"tic_tac_toe_cleanup_deleted_rows_total{entity=\"games\"} 4",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected metrics body to contain %q, got %q", want, body)
+		}
 	}
-	if snapshot["successCount"].(int64) != 1 {
-		t.Fatalf("expected one success, got %#v", snapshot["successCount"])
-	}
-	if snapshot["usersDeleted"].(int64) != 3 {
-		t.Fatalf("expected 3 deleted users, got %#v", snapshot["usersDeleted"])
-	}
-	if snapshot["gamesDeleted"].(int64) != 4 {
-		t.Fatalf("expected 4 deleted games, got %#v", snapshot["gamesDeleted"])
-	}
-	if snapshot["lastError"].(string) != "" {
-		t.Fatalf("expected empty last error, got %#v", snapshot["lastError"])
+	if strings.Contains(body, "\"runCount\"") {
+		t.Fatalf("expected prometheus metrics, got json-like body: %q", body)
 	}
 }
 
@@ -87,15 +91,16 @@ func TestRunCleanupRecordsError(t *testing.T) {
 		t.Fatal("expected cleanup error")
 	}
 
-	snapshot := metrics.snapshot()
-	if snapshot["runCount"].(int64) != 1 {
-		t.Fatalf("expected one run, got %#v", snapshot["runCount"])
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metrics.handler().ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "tic_tac_toe_cleanup_runs_total{result=\"failure\"} 1") {
+		t.Fatalf("expected failure counter, got %q", body)
 	}
-	if snapshot["successCount"].(int64) != 0 {
-		t.Fatalf("expected zero successes, got %#v", snapshot["successCount"])
-	}
-	if snapshot["lastError"].(string) == "" {
-		t.Fatal("expected last error to be recorded")
+	if strings.Contains(body, "\"lastError\"") {
+		t.Fatalf("expected prometheus metrics, got json-like body: %q", body)
 	}
 }
 

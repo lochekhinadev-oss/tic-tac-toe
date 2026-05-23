@@ -2,8 +2,6 @@ package di
 
 import (
 	"net/http"
-	"runtime"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -50,8 +48,6 @@ const (
 </html>`
 )
 
-var startedAt = time.Now()
-
 func registerRouterMiddleware(router chi.Router) {
 	router.Use(chimiddleware.RequestID)
 	router.Use(chimiddleware.RealIP)
@@ -75,18 +71,8 @@ func registerSystemRoutes(router chi.Router, db datasource.Database) {
 func registerPublicRoutes(router chi.Router, authHandler *handler.AuthHandler) {
 	router.Post("/users", authHandler.SignUp)
 	router.Post("/auth/sessions", authHandler.Authenticate)
-	router.Post("/auth/tokens/access", authHandler.RefreshAccessToken)
-	router.Post("/auth/tokens/refresh", authHandler.RefreshRefreshToken)
 	router.Delete("/auth/sessions/current", authHandler.Logout)
 	router.Delete("/auth/sessions", authHandler.LogoutAll)
-
-	// Legacy aliases kept to avoid breaking existing clients.
-	router.Post("/signup", authHandler.SignUp)
-	router.Post("/auth", authHandler.Authenticate)
-	router.Post("/auth/refresh/access", authHandler.RefreshAccessToken)
-	router.Post("/auth/refresh", authHandler.RefreshRefreshToken)
-	router.Post("/auth/logout", authHandler.Logout)
-	router.Post("/auth/logout/all", authHandler.LogoutAll)
 }
 
 func registerProtectedRoutes(router chi.Router, gameHandler *handler.GameHandler, userHandler *handler.UserHandler, authenticator *middleware.UserAuthenticator) {
@@ -130,24 +116,8 @@ func readyz(db datasource.Database) http.HandlerFunc {
 	}
 }
 
-func metrics(w http.ResponseWriter, _ *http.Request) {
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
-
-	webresponse.WriteJSON(w, http.StatusOK, map[string]any{
-		"status":        "ok",
-		"uptimeSec":     int64(time.Since(startedAt).Seconds()),
-		"goroutines":    runtime.NumGoroutine(),
-		"allocBytes":    mem.Alloc,
-		"totalAlloc":    mem.TotalAlloc,
-		"sysBytes":      mem.Sys,
-		"heapObjects":   mem.HeapObjects,
-		"gcCycles":      mem.NumGC,
-		"lastGCPauseNs": mem.PauseNs[(mem.NumGC+255)%256],
-		"httpRequests":  appmetrics.SnapshotHTTPRequestStats(),
-		"authEvents":    appmetrics.SnapshotAuthEventStats(),
-		"gameEvents":    appmetrics.SnapshotGameEventStats(),
-	})
+func metrics(w http.ResponseWriter, r *http.Request) {
+	appmetrics.Handler().ServeHTTP(w, r)
 }
 
 func swaggerUI(w http.ResponseWriter, _ *http.Request) {

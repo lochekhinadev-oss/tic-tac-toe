@@ -19,8 +19,6 @@ type authHandlerServiceStub struct {
 	signUpErr    error
 	signInOK     authservice.SessionResponse
 	signInErr    error
-	refreshOK    authservice.SessionResponse
-	refreshErr   error
 	logoutErr    error
 	logoutAllErr error
 }
@@ -31,22 +29,6 @@ func (s authHandlerServiceStub) SignUp(context.Context, authservice.SignUpReques
 
 func (s authHandlerServiceStub) SignIn(context.Context, authservice.SessionRequest) (authservice.SessionResponse, error) {
 	return s.signInOK, s.signInErr
-}
-
-func (s authHandlerServiceStub) RefreshSession(context.Context, string) (authservice.SessionResponse, error) {
-	return s.refreshOK, s.refreshErr
-}
-
-func (s authHandlerServiceStub) Logout(context.Context, string) error {
-	return s.logoutErr
-}
-
-func (s authHandlerServiceStub) LogoutAll(context.Context, string) error {
-	return s.logoutAllErr
-}
-
-func (s authHandlerServiceStub) AuthenticateSession(context.Context, string) (string, error) {
-	return testUUID, nil
 }
 
 func TestAuthHandlerSignUp(t *testing.T) {
@@ -67,7 +49,7 @@ func TestAuthHandlerSignUp(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := NewAuthHandler(tt.auth)
-			rec, req := newAuthRequest(http.MethodPost, "/signup", tt.body)
+			rec, req := newAuthRequest(http.MethodPost, "/users", tt.body)
 			handler.SignUp(rec, req)
 			assertResponseStatus(t, rec, tt.status)
 			assertResponseMessageIfSet(t, rec, tt.status, tt.message)
@@ -134,28 +116,16 @@ func TestAuthHandlerAuthenticateDoesNotLeakSecrets(t *testing.T) {
 	}
 }
 
-func TestAuthHandlerRefreshSession(t *testing.T) {
-	handler := NewAuthHandler(authHandlerServiceStub{
-		refreshOK: authservice.SessionResponse{UserUUID: testUUID, SessionID: "session-2"},
-	})
-	rec, req := newAuthRequest(http.MethodPost, "/auth/refresh/access", "")
-	req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
-
-	handler.RefreshAccessToken(rec, req)
-
-	assertResponseStatus(t, rec, http.StatusOK)
-	assertAuthResponse(t, rec, testUUID)
-	assertSessionCookie(t, rec)
+func (s authHandlerServiceStub) Logout(context.Context, string) error {
+	return s.logoutErr
 }
 
-func TestAuthHandlerRefreshSessionUnauthorized(t *testing.T) {
-	handler := NewAuthHandler(authHandlerServiceStub{refreshErr: authservice.ErrInvalidToken})
-	rec, req := newAuthRequest(http.MethodPost, "/auth/refresh", "")
-	req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: "session-1"})
+func (s authHandlerServiceStub) LogoutAll(context.Context, string) error {
+	return s.logoutAllErr
+}
 
-	handler.RefreshRefreshToken(rec, req)
-
-	assertAuthStatusAndMessage(t, rec, http.StatusUnauthorized, "unauthorized")
+func (s authHandlerServiceStub) AuthenticateSession(context.Context, string) (string, error) {
+	return testUUID, nil
 }
 
 func TestAuthHandlerLogout(t *testing.T) {

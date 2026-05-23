@@ -8,7 +8,6 @@ import (
 type AuthService interface {
 	SignUp(ctx context.Context, request SignUpRequest) (bool, error)
 	SignIn(ctx context.Context, request SessionRequest) (SessionResponse, error)
-	RefreshSession(ctx context.Context, sessionID string) (SessionResponse, error)
 	Logout(ctx context.Context, sessionID string) error
 	LogoutAll(ctx context.Context, sessionID string) error
 	AuthenticateSession(ctx context.Context, sessionID string) (string, error)
